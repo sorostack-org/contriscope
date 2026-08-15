@@ -7,6 +7,13 @@ export interface GitHubCredentials {
   token?: string;
 }
 
+export interface FetchIssuesOptions {
+  state?: "open" | "closed" | "all";
+  perPage?: number;
+  page?: number;
+  excludePullRequests?: boolean;
+}
+
 interface GitHubIssueResponse {
   number: number;
   title: string;
@@ -82,13 +89,6 @@ export async function fetchIssue(
   return mapGitHubIssue(payload);
 }
 
-export interface FetchIssuesOptions {
-  state?: "open" | "closed" | "all";
-  perPage?: number;
-  page?: number;
-  excludePullRequests?: boolean;
-}
-
 export async function fetchIssues(
   owner: string,
   repo: string,
@@ -104,6 +104,28 @@ export async function fetchIssues(
   return payload
     .filter((issue) => !excludePullRequests || issue.pull_request === undefined)
     .map(mapGitHubIssue);
+}
+
+export async function fetchAllOpenIssues(
+  owner: string,
+  repo: string,
+  credentials: GitHubCredentials = {},
+): Promise<Issue[]> {
+  const issues: Issue[] = [];
+  let page = 1;
+  for (;;) {
+    const batch = await fetchIssues(owner, repo, credentials, {
+      state: "open",
+      perPage: 100,
+      page,
+    });
+    issues.push(...batch);
+    if (batch.length < 100) {
+      break;
+    }
+    page += 1;
+  }
+  return issues;
 }
 
 export async function fetchRepoMetadata(
@@ -129,26 +151,38 @@ export async function fetchRepoMetadata(
   };
 }
 
-export async function fetchAllOpenIssues(
+export async function postComment(
   owner: string,
   repo: string,
+  issueNumber: number,
+  body: string,
   credentials: GitHubCredentials = {},
-): Promise<Issue[]> {
-  const issues: Issue[] = [];
-  let page = 1;
-  for (;;) {
-    const batch = await fetchIssues(owner, repo, credentials, {
-      state: "open",
-      perPage: 100,
-      page,
-    });
-    issues.push(...batch);
-    if (batch.length < 100) {
-      break;
-    }
-    page += 1;
+): Promise<void> {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "contriscope",
+    "Content-Type": "application/json",
+  };
+  if (credentials.token) {
+    headers.Authorization = `Bearer ${credentials.token}`;
   }
-  return issues;
+
+  const response = await fetch(
+    `${API_BASE}/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ body }),
+    },
+  );
+  if (!response.ok) {
+    const rateLimited =
+      response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0";
+    throw new GitHubError(
+      `Failed to post comment: GitHub API responded with status ${response.status}.`,
+      { status: response.status, rateLimited },
+    );
+  }
 }
 
 export async function fetchRepoFileExistence(
