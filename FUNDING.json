@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "name": "ContriScope",
+  "description": "Contributor-ready issue scoping and repository readiness tooling for funded open-source contribution on the Stellar ecosystem (Drips Wave + GrantFox).",
+  "repository": "https://github.com/Sorostack/contriscope",
+  "funding": {
+    "drips": {
+      "ethereum": {
+        "ownedBy": "https://github.com/Sorostack/contriscope"
+      }
+    }
+  },
+  "dependencies": []
+}
