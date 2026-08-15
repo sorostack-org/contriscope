@@ -22,6 +22,8 @@ export function scoreIssue(issue: Issue, options: ScoreIssueOptions = {}): Issue
     ? suggestWaveComplexity({ config, title: issue.title, body: issue.body })
     : undefined;
 
+  const summary = buildSummary(issue.title, totalScore, verdict, dimensions);
+
   return {
     issue: { ...issue },
     score: totalScore,
@@ -29,8 +31,20 @@ export function scoreIssue(issue: Issue, options: ScoreIssueOptions = {}): Issue
     dimensions,
     findings,
     wave,
-    summary: `${issue.title} scores ${totalScore}/100 (${verdict}).`,
+    summary,
   };
+}
+
+export function buildSummary(
+  title: string,
+  score: number,
+  verdict: Verdict,
+  dimensions: DimensionScore[],
+): string {
+  const weakest = [...dimensions].sort((a, b) => a.score - b.score)[0];
+  const weakLabel = weakest ? ` Weakest area: ${weakest.label} (${weakest.score}/100).` : "";
+  const titleSnippet = title.trim() ? `"${title.trim()}"` : "Untitled issue";
+  return `${titleSnippet} scores ${score}/100 (${verdict.replace("-", " ")}).${weakLabel}`;
 }
 
 export function computeVerdict(score: number, config: ContriscopeConfig): Verdict {
