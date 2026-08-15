@@ -1,9 +1,17 @@
+const WORD_PATTERN_CACHE = new Map<string, RegExp>();
+
 export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function wordPattern(word: string): RegExp {
-  return new RegExp(`\\b${escapeRegExp(word)}\\b`, "gi");
+  const cached = WORD_PATTERN_CACHE.get(word);
+  if (cached) {
+    return cached;
+  }
+  const pattern = new RegExp(`\\b${escapeRegExp(word)}\\b`, "gi");
+  WORD_PATTERN_CACHE.set(word, pattern);
+  return pattern;
 }
 
 export function countWords(value: string): number {
