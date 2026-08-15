@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { ConfigError } from "./errors";
 import type { DimensionId } from "./types";
 
@@ -280,4 +282,46 @@ export function mergeConfig(
   const merged = overrides ? deepMerge(base, overrides) : base;
   validateConfig(merged);
   return merged;
+}
+
+export interface LoadedConfig {
+  config: ContriscopeConfig;
+  path?: string;
+}
+
+export function loadConfigFile(path: string): ContriscopeConfig {
+  let raw: string;
+  try {
+    raw = readFileSync(resolve(path), "utf8");
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new ConfigError(`Unable to read config file "${path}": ${detail}`);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new ConfigError(`Config file "${path}" is not valid JSON: ${detail}`);
+  }
+  return mergeConfig(parsed as DeepPartial<ContriscopeConfig>);
+}
+
+export function loadConfig(path?: string): LoadedConfig {
+  if (!path) {
+    return { config: DEFAULT_CONFIG };
+  }
+  return { config: loadConfigFile(path), path: resolve(path) };
+}
+
+export function pickConfigPath(candidates: string[]): string | undefined {
+  for (const candidate of candidates) {
+    try {
+      readFileSync(resolve(candidate), "utf8");
+      return candidate;
+    } catch {
+      // continue
+    }
+  }
+  return undefined;
 }
