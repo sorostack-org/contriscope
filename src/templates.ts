@@ -26,6 +26,8 @@ export function renderTemplate(type: TemplateType, options: RenderTemplateOption
   switch (type) {
     case "good-first-issue":
       return renderGoodFirstIssue(options);
+    case "soroban":
+      return renderSoroban(options);
     default:
       return renderGoodFirstIssue(options);
   }
@@ -102,6 +104,53 @@ function renderGoodFirstIssue(options: RenderTemplateOptions): string {
     "## Complexity",
     "",
     `Suggested complexity: **${(options.complexity ?? "trivial").toUpperCase()}**. Adjust the complexity label to match the real effort.`,
+    "",
+  ].join("\n");
+}
+
+function renderSoroban(options: RenderTemplateOptions): string {
+  const labels = ["smart contract", COMPLEXITY_LABEL[options.complexity ?? "medium"]];
+  return [
+    frontmatter(
+      "Soroban contract task",
+      "Implementation work on a Stellar Soroban smart contract",
+      "[soroban] ",
+      labels,
+    ),
+    "",
+    "## Why",
+    "",
+    "Explain the contract behaviour being added or changed and its impact on users (e.g. escrow, payments, splitter).",
+    "",
+    "## Requirements and context",
+    "",
+    "- Contract function(s) affected: (list them)",
+    "- Target network: **Testnet** / **Mainnet** (delete one)",
+    "- Contract ID (if known): `CA...` or 'not yet deployed'",
+    "- Storage keys / admin / authority accounts involved: (describe)",
+    "",
+    "## Scope",
+    "",
+    "State the functions and files involved (e.g. `contracts/escrow/src/lib.rs`). Keep it to one contract concern.",
+    "",
+    "## Acceptance criteria",
+    "",
+    "- [ ] New/updated Soroban contract functions behave as specified",
+    "- [ ] Unit tests cover the new logic, including edge cases",
+    "- [ ] `cargo test` passes and the contract builds to `wasm32-unknown-unknown`",
+    "- [ ] Behaviour is documented (contract doc comment or docs/)",
+    "",
+    "## Security considerations",
+    "",
+    "- [ ] No secret keys or live accounts referenced — use placeholders (`G...`, `S...`)",
+    "- [ ] Re-entrancy, auth, and panic paths are considered",
+    "- [ ] Correct network (Testnet vs Mainnet) is used in examples",
+    "",
+    sharedSections(),
+    "",
+    "## Complexity",
+    "",
+    `Suggested complexity: **${(options.complexity ?? "medium").toUpperCase()}**. Adjust the complexity label to match the real effort.`,
     "",
   ].join("\n");
 }
