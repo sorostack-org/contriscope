@@ -1,0 +1,374 @@
+import { DEFAULT_CONFIG, type ContriscopeConfig } from "./config";
+import { scoreIssue, worstFindings } from "./scorer";
+import { extractFileReferences, hasSection } from "./text";
+import { ACCEPTANCE_HEADINGS } from "./checks/acceptance";
+import type {
+  DimensionScore,
+  Finding,
+  Issue,
+  IssueAssessment,
+  ReadinessSection,
+  RepoMetadata,
+  RepoReadiness,
+} from "./types";
+
+export interface AssessRepoReadinessOptions {
+  config?: ContriscopeConfig;
+  issues?: Issue[];
+}
+
+interface CheckItem {
+  id: string;
+  label: string;
+  met: boolean;
+  detail: string;
+}
+
+export function assessRepoReadiness(
+  repo: RepoMetadata,
+  options: AssessRepoReadinessOptions = {},
+): RepoReadiness {
+  const config = options.config ?? DEFAULT_CONFIG;
+  const issues = options.issues ?? [];
+
+  const assessments = issues.map((issue) => scoreIssue(issue, { config }));
+
+  const sections = buildSections(repo, assessments, issues, config);
+  const totalScore = Math.round(
+    sections.reduce((sum, section) => sum + section.score * section.weight, 0),
+  );
+  const grade = computeGrade(totalScore);
+  const findings = sections.flatMap((section) => section.findings);
+
+  return {
+    repo,
+    score: totalScore,
+    grade,
+    sections,
+    findings,
+    issuesScored: assessments.length,
+    issuesTotal: issues.length,
+  } as RepoReadiness;
+}
+
+function buildSections(
+  repo: RepoMetadata,
+  assessments: IssueAssessment[],
+  issues: Issue[],
+  config: ContriscopeConfig,
+): ReadinessSection[] {
+  return [
+    scoreSection("documentation", "Documentation", 0.2, documentationItems(repo)),
+    scoreSection("issue-quality", "Issue quality", 0.3, issueQualityItems(assessments, issues)),
+    scoreSection("activity", "Activity & maintenance", 0.15, activityItems(repo)),
+    scoreSection(
+      "onboarding",
+      "Contributor onboarding",
+      0.2,
+      onboardingItems(repo, issues, config),
+    ),
+    scoreSection("ecosystem", "Ecosystem signals", 0.15, ecosystemItems(repo, issues, config)),
+  ];
+}
+
+function scoreSection(
+  id: string,
+  label: string,
+  weight: number,
+  items: CheckItem[],
+): ReadinessSection {
+  const metCount = items.filter((item) => item.met).length;
+  const score = items.length > 0 ? Math.round((metCount / items.length) * 100) : 0;
+  const findings = unmetFindings(id, items);
+  return { id, label, score, weight, findings };
+}
+
+function unmetFindings(id: string, items: CheckItem[]): Finding[] {
+  return items
+    .filter((item) => !item.met)
+    .slice(0, 4)
+    .map((item) => ({
+      id: `${id}.${item.id}`,
+      dimension: "clarity" as const,
+      severity: "warning" as const,
+      title: item.label,
+      message: item.detail,
+      suggestion: undefined,
+    }));
+}
+
+function documentationItems(repo: RepoMetadata): CheckItem[] {
+  return [
+    {
+      id: "readme",
+      label: "README present and substantial",
+      met: Boolean(repo.hasREADME && (repo.readmeLength ?? 0) >= 400),
+      detail: repo.hasREADME
+        ? `README present (${repo.readmeLength ?? "?"} characters).`
+        : "A substantial README is required for contributors to understand the project.",
+    },
+    {
+      id: "contributing",
+      label: "CONTRIBUTING guide present",
+      met: Boolean(repo.hasContributing),
+      detail: repo.hasContributing
+        ? "CONTRIBUTING guide present."
+        : "Add a CONTRIBUTING guide so contributors know how to get started.",
+    },
+    {
+      id: "license",
+      label: "Open-source license",
+      met: Boolean(repo.hasLicense),
+      detail: repo.hasLicense
+        ? "LICENSE file present."
+        : "Add an open-source license (e.g. MIT) so contributions are legally usable.",
+    },
+    {
+      id: "docs",
+      label: "Documentation available",
+      met: Boolean(repo.hasDocs),
+      detail: repo.hasDocs
+        ? "A docs folder or docs site is present."
+        : "Provide documentation (architecture, API, setup) beyond the README.",
+    },
+    {
+      id: "security",
+      label: "Security policy",
+      met: Boolean(repo.hasSecurity),
+      detail: repo.hasSecurity
+        ? "SECURITY policy present."
+        : "Add a SECURITY.md with a vulnerability reporting path.",
+    },
+  ];
+}
+
+function issueQualityItems(assessments: IssueAssessment[], issues: Issue[]): CheckItem[] {
+  const withAcceptance = assessments.filter((a) =>
+    hasSection(a.issue.body, ACCEPTANCE_HEADINGS),
+  ).length;
+  const labeledIssues = issues.filter((i) => i.labels !== undefined);
+  const labeledRatio =
+    labeledIssues.length > 0
+      ? labeledIssues.filter((i) => (i.labels?.length ?? 0) > 0).length / labeledIssues.length
+      : undefined;
+  const withFileRefs = assessments.filter(
+    (a) => extractFileReferences(a.issue.body).length > 0,
+  ).length;
+
+  return [
+    {
+      id: "avg-score",
+      label: "Average issue score is good",
+      met: assessments.length > 0 && average(assessments.map((a) => a.score)) >= 70,
+      detail:
+        assessments.length > 0
+          ? `Average issue score: ${Math.round(average(assessments.map((a) => a.score)))}/100.`
+          : "No issues provided to assess.",
+    },
+    {
+      id: "acceptance-criteria",
+      label: "Issues define acceptance criteria",
+      met: assessments.length > 0 && withAcceptance / assessments.length >= 0.5,
+      detail:
+        assessments.length > 0
+          ? `${withAcceptance}/${assessments.length} issues define acceptance criteria.`
+          : "No issues to check.",
+    },
+    {
+      id: "labels",
+      label: "Issues use labels",
+      met: labeledRatio === undefined || labeledRatio >= 0.5,
+      detail:
+        labeledRatio === undefined
+          ? "No label data available."
+          : `${Math.round(labeledRatio * 100)}% of issues carry labels.`,
+    },
+    {
+      id: "file-refs",
+      label: "Issues reference files or modules",
+      met: assessments.length > 0 && withFileRefs / assessments.length >= 0.5,
+      detail:
+        assessments.length > 0
+          ? `${withFileRefs}/${assessments.length} issues reference files or modules.`
+          : "No issues to check.",
+    },
+    {
+      id: "open-issues",
+      label: "There are scoped issues to apply to",
+      met: assessments.length > 0,
+      detail:
+        assessments.length > 0
+          ? `${assessments.length} issue(s) analysed.`
+          : "No open issues found for contributors.",
+    },
+  ];
+}
+
+function activityItems(repo: RepoMetadata): CheckItem[] {
+  const total = (repo.openIssues ?? 0) + (repo.closedIssues ?? 0);
+  const resolvedRatio = total > 0 ? (repo.closedIssues ?? 0) / total : 0;
+  return [
+    {
+      id: "activity",
+      label: "Repository has issue activity",
+      met: total > 0,
+      detail:
+        total > 0
+          ? `${repo.openIssues ?? 0} open, ${repo.closedIssues ?? 0} closed.`
+          : "No issue activity.",
+    },
+    {
+      id: "resolved",
+      label: "Issues are being resolved",
+      met: total > 0 && resolvedRatio >= 0.4,
+      detail:
+        total > 0
+          ? `${Math.round(resolvedRatio * 100)}% of issues resolved.`
+          : "Cannot determine resolution ratio.",
+    },
+    {
+      id: "description",
+      label: "Repository description present",
+      met: Boolean(repo.description),
+      detail: repo.description ? "Description present." : "Add a short repository description.",
+    },
+  ];
+}
+
+function onboardingItems(
+  repo: RepoMetadata,
+  issues: Issue[],
+  config: ContriscopeConfig,
+): CheckItem[] {
+  const goodFirst = issues.filter((issue) =>
+    (issue.labels ?? []).some((label) => label.toLowerCase() === config.labels.goodFirstIssue),
+  ).length;
+  return [
+    {
+      id: "coc",
+      label: "Code of Conduct",
+      met: Boolean(repo.hasCodeOfConduct),
+      detail: repo.hasCodeOfConduct
+        ? "CODE_OF_CONDUCT present."
+        : "Add a code of conduct to foster a welcoming community.",
+    },
+    {
+      id: "ci",
+      label: "CI is configured",
+      met: Boolean(repo.hasCi),
+      detail: repo.hasCi
+        ? "CI workflows present."
+        : "Add CI so contributors know their PRs will be checked.",
+    },
+    {
+      id: "issue-templates",
+      label: "Issue templates",
+      met: Boolean(repo.hasIssueTemplates),
+      detail: repo.hasIssueTemplates
+        ? "Issue templates present."
+        : "Add issue templates to capture context and acceptance criteria.",
+    },
+    {
+      id: "pr-templates",
+      label: "Pull request templates",
+      met: Boolean(repo.hasPullRequestTemplates),
+      detail: repo.hasPullRequestTemplates
+        ? "PR templates present."
+        : "Add a PR template (including 'Closes #issue').",
+    },
+    {
+      id: "good-first",
+      label: "Beginner-friendly issues",
+      met: goodFirst >= config.repo.goodFirstIssueTarget,
+      detail: `${goodFirst} good-first-issue(s) found (target: ${config.repo.goodFirstIssueTarget}).`,
+    },
+  ];
+}
+
+function ecosystemItems(
+  repo: RepoMetadata,
+  issues: Issue[],
+  config: ContriscopeConfig,
+): CheckItem[] {
+  const description = (repo.description ?? "").toLowerCase();
+  const name = repo.name.toLowerCase();
+  const isStellarProject = /stellar|soroban|xlm|anchor/.test(`${description} ${name}`);
+  const waveLabelUsed = issues.some((issue) =>
+    (issue.labels ?? []).some((label) => label.toLowerCase() === config.labels.wave.toLowerCase()),
+  );
+  const complexityLabelled = issues.some((issue) =>
+    (issue.labels ?? []).some(
+      (label) =>
+        label.toLowerCase().startsWith("complexity") ||
+        ["trivial", "medium", "high"].includes(label.toLowerCase()),
+    ),
+  );
+  return [
+    {
+      id: "stellar",
+      label: "Stellar ecosystem project",
+      met: isStellarProject,
+      detail: isStellarProject
+        ? "Project signals align with the Stellar ecosystem."
+        : "No Stellar signal found in the description or name.",
+    },
+    {
+      id: "wave-label",
+      label: "Wave label in use",
+      met: waveLabelUsed,
+      detail: waveLabelUsed
+        ? `Issues use the "${config.labels.wave}" label.`
+        : `No issue uses the "${config.labels.wave}" label yet.`,
+    },
+    {
+      id: "complexity-label",
+      label: "Complexity tags in use",
+      met: complexityLabelled,
+      detail: complexityLabelled
+        ? "Issues carry complexity tags."
+        : "No complexity tags found on issues.",
+    },
+    {
+      id: "issues",
+      label: "Issue data available",
+      met: issues.length > 0,
+      detail: issues.length > 0 ? `${issues.length} issue(s) analysed.` : "No issues provided.",
+    },
+  ];
+}
+
+function dimensionScore(assessment: IssueAssessment, id: DimensionScore["id"]): number {
+  const dimension = assessment.dimensions.find((d) => d.id === id);
+  return dimension ? dimension.score : 0;
+}
+
+function average(values: number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function computeGrade(score: number): RepoReadiness["grade"] {
+  if (score >= 90) {
+    return "A";
+  }
+  if (score >= 75) {
+    return "B";
+  }
+  if (score >= 60) {
+    return "C";
+  }
+  if (score >= 40) {
+    return "D";
+  }
+  return "F";
+}
+
+export function summarizeReadiness(report: RepoReadiness): string {
+  const top = worstFindings(report.findings, 3);
+  const topLine = top.map((f) => f.title).join("; ");
+  return `${report.repo.name} readiness ${report.score}/100 (${report.grade}). ${
+    report.issuesScored
+  }/${report.issuesTotal} issues scored.${topLine ? ` Priority: ${topLine}.` : ""}`;
+}
