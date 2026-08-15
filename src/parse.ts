@@ -6,6 +6,33 @@ export interface ParsedIssue {
   format: "markdown" | "json";
 }
 
+export function parseIssueFromMarkdown(content: string): Issue {
+  let frontmatter: Record<string, string> = {};
+  let body = content;
+
+  if (content.startsWith("---")) {
+    const end = content.indexOf("\n---", 4);
+    if (end !== -1) {
+      const rawFrontmatter = content.slice(4, end);
+      body = content.slice(end + 4).replace(/^\n/, "");
+      frontmatter = parseFrontmatter(rawFrontmatter);
+    }
+  }
+
+  let resolvedTitle = frontmatter.title ?? "";
+  if (!resolvedTitle) {
+    const heading = body.match(/^#\s+(.+)$/m);
+    resolvedTitle = heading ? heading[1].trim() : "";
+  }
+
+  const labels = parseLabels(frontmatter.labels);
+  return {
+    title: resolvedTitle,
+    body,
+    labels,
+  };
+}
+
 export function parseIssueFromJson(content: string): Issue {
   let parsed: unknown;
   try {
@@ -59,31 +86,43 @@ export function parseIssueInput(content: string, filename?: string): ParsedIssue
   return { issue: parseIssueFromMarkdown(content), format: "markdown" };
 }
 
-export function parseIssueFromMarkdown(content: string): Issue {
-  let frontmatter: Record<string, string> = {};
-  let body = content;
-
-  if (content.startsWith("---")) {
-    const end = content.indexOf("\n---", 4);
-    if (end !== -1) {
-      const rawFrontmatter = content.slice(4, end);
-      body = content.slice(end + 4).replace(/^\n/, "");
-      frontmatter = parseFrontmatter(rawFrontmatter);
+export function parseIssuesFromDirectory(content: string, filename: string): Issue[] {
+  if (filename.toLowerCase().endsWith(".json")) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new InputError(`File "${filename}" is not valid JSON: ${detail}`);
     }
+    if (Array.isArray(parsed)) {
+      return parsed.map((entry) => {
+        const record = entry as Record<string, unknown>;
+        return {
+          title: typeof record.title === "string" ? record.title : "",
+          body: typeof record.body === "string" ? record.body : "",
+          labels: Array.isArray(record.labels) ? record.labels.map(String) : undefined,
+          number: typeof record.number === "number" ? record.number : undefined,
+        };
+      });
+    }
+    const record = parsed as Record<string, unknown>;
+    if (typeof record === "object" && record !== null && "issues" in record) {
+      const list = (record as { issues: unknown }).issues;
+      if (Array.isArray(list)) {
+        return list.map((entry) => {
+          const item = entry as Record<string, unknown>;
+          return {
+            title: typeof item.title === "string" ? item.title : "",
+            body: typeof item.body === "string" ? item.body : "",
+            labels: Array.isArray(item.labels) ? item.labels.map(String) : undefined,
+          };
+        });
+      }
+    }
+    throw new InputError(`File "${filename}" should contain an array of issues.`);
   }
-
-  let resolvedTitle = frontmatter.title ?? "";
-  if (!resolvedTitle) {
-    const heading = body.match(/^#\s+(.+)$/m);
-    resolvedTitle = heading ? heading[1].trim() : "";
-  }
-
-  const labels = parseLabels(frontmatter.labels);
-  return {
-    title: resolvedTitle,
-    body,
-    labels,
-  };
+  return [parseIssueFromMarkdown(content)];
 }
 
 function parseFrontmatter(raw: string): Record<string, string> {
