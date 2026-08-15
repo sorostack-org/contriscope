@@ -129,6 +129,28 @@ export async function fetchRepoMetadata(
   };
 }
 
+export async function fetchAllOpenIssues(
+  owner: string,
+  repo: string,
+  credentials: GitHubCredentials = {},
+): Promise<Issue[]> {
+  const issues: Issue[] = [];
+  let page = 1;
+  for (;;) {
+    const batch = await fetchIssues(owner, repo, credentials, {
+      state: "open",
+      perPage: 100,
+      page,
+    });
+    issues.push(...batch);
+    if (batch.length < 100) {
+      break;
+    }
+    page += 1;
+  }
+  return issues;
+}
+
 export function mapGitHubIssue(issue: GitHubIssueResponse): Issue {
   return {
     number: issue.number,
