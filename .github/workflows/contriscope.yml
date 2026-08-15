@@ -1,0 +1,22 @@
+name: ContriScope (dogfood)
+
+on:
+  issues:
+    types: [opened, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  score:
+    name: Score issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run ContriScope
+        uses: ./
+        with:
+          mode: issue
+          fail-below: 55
