@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 import {
   DEFAULT_CONFIG,
   loadConfigFile,
@@ -18,10 +18,10 @@ import {
   fetchRepoFiles,
   parseRepositorySlug,
 } from "./index";
-import { parseIssueInput } from "./parse";
+import { parseIssueInput, parseIssuesFromDirectory } from "./parse";
 import { renderIssueAssessment, renderRepoReadiness } from "./report";
 import { scoreIssue } from "./scorer";
-import type { OutputFormat, RepoMetadata } from "./types";
+import type { Issue, OutputFormat, RepoMetadata } from "./types";
 
 const HELP = `ContriScope — contributor-ready issue scoping for funded open source on Stellar.
 
@@ -153,6 +153,11 @@ async function runCheckRepo(parsed: ParsedCli): Promise<number> {
   const config = resolveConfig(options);
   const format = optionFormat(options);
 
+  const pathArg = stringOption(options, "path");
+  if (pathArg) {
+    return runCheckRepoLocal(pathArg, config, format, options);
+  }
+
   const slug = stringOption(options, "slug");
   const owner = stringOption(options, "owner");
   const repo = stringOption(options, "repo");
@@ -177,6 +182,57 @@ async function runCheckRepo(parsed: ParsedCli): Promise<number> {
   const blocked =
     report.programs.wave.verdict === "blocked" || report.programs.grantfox.verdict === "blocked";
   return computeExitCode(report.score, blocked, options);
+}
+
+async function runCheckRepoLocal(
+  pathArg: string,
+  config: ContriscopeConfig,
+  format: OutputFormat,
+  options: CliOptions,
+): Promise<number> {
+  const dir = resolve(pathArg);
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) {
+    throw new UsageError(`--path must point to an existing directory (got "${pathArg}").`);
+  }
+
+  const issues = readLocalIssues(dir);
+  const repo = readLocalRepoMetadata(dir, basename(dir));
+  const report = assessRepoReadiness(repo, { config, issues });
+  process.stdout.write(
+    `${renderRepoReadiness(report, format, { includeRaw: format === "json" })}\n`,
+  );
+
+  const blocked =
+    report.programs.wave.verdict === "blocked" || report.programs.grantfox.verdict === "blocked";
+  return computeExitCode(report.score, blocked, options);
+}
+
+function readLocalIssues(dir: string): Issue[] {
+  const files = readdirSync(dir).filter((name) => name.endsWith(".md") || name.endsWith(".json"));
+  const issues: Issue[] = [];
+  for (const file of files) {
+    const content = readFileSync(join(dir, file), "utf8");
+    issues.push(...parseIssuesFromDirectory(content, file));
+  }
+  return issues;
+}
+
+function readLocalRepoMetadata(dir: string, name: string): RepoMetadata {
+  const has = (path: string) => existsSync(join(dir, path));
+  const readme = has("README.md") ? readFileSync(join(dir, "README.md"), "utf8") : undefined;
+  return {
+    name,
+    hasREADME: has("README.md"),
+    readmeLength: readme?.length,
+    hasContributing: has("CONTRIBUTING.md"),
+    hasLicense: has("LICENSE") || has("LICENSE.md"),
+    hasCodeOfConduct: has("CODE_OF_CONDUCT.md") || has("CODE_OF_CONDUCT"),
+    hasSecurity: has("SECURITY.md"),
+    hasDocs: has("docs"),
+    hasCi: has(".github/workflows"),
+    hasIssueTemplates: has(".github/ISSUE_TEMPLATE"),
+    hasPullRequestTemplates: has(".github/PULL_REQUEST_TEMPLATE.md"),
+  };
 }
 
 async function enrichRepoMetadata(
