@@ -102,6 +102,20 @@ export function checkStellar(input: StellarInput): StellarResult {
     );
   }
 
+  const secretKeyMatches = haystack.match(/\bS[A-Z2-7]{55}\b/g);
+  if (secretKeyMatches && secretKeyMatches.length > 0) {
+    add(
+      makeFinding(
+        "stellar.secret-key",
+        "stellar",
+        "error",
+        "Possible Stellar secret key detected",
+        `${secretKeyMatches.length} string(s) match the Stellar secret-key format (S...).`,
+        "Never share secret keys. Replace with placeholders and rotate any key that may have been exposed.",
+      ),
+    );
+  }
+
   const sepMatches = haystack.match(/\bSEP-(\d+)\b/g);
   if (sepMatches && sepMatches.length > 0) {
     const unknown = sepMatches.filter((match) => {
