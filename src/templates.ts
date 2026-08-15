@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import type { WaveLevel } from "./types";
 
 export type TemplateType = "good-first-issue" | "soroban" | "feature" | "docs" | "bug" | "qa";
@@ -28,8 +30,14 @@ export function renderTemplate(type: TemplateType, options: RenderTemplateOption
       return renderGoodFirstIssue(options);
     case "soroban":
       return renderSoroban(options);
-    default:
-      return renderGoodFirstIssue(options);
+    case "feature":
+      return renderFeature(options);
+    case "docs":
+      return renderDocs(options);
+    case "bug":
+      return renderBug(options);
+    case "qa":
+      return renderQa(options);
   }
 }
 
@@ -155,6 +163,167 @@ function renderSoroban(options: RenderTemplateOptions): string {
   ].join("\n");
 }
 
+function renderFeature(options: RenderTemplateOptions): string {
+  const labels = ["enhancement", COMPLEXITY_LABEL[options.complexity ?? "medium"]];
+  return [
+    frontmatter(
+      "Feature request",
+      "A scoped feature implementation for contributors",
+      "[feature] ",
+      labels,
+    ),
+    "",
+    "## Why",
+    "",
+    "Describe the problem this feature solves and who is affected.",
+    "",
+    "## What",
+    "",
+    "Describe the intended behaviour in concrete terms. Reference the modules involved.",
+    "",
+    "## Requirements and context",
+    "",
+    "- Stack / framework: (e.g. TypeScript, @stellar/stellar-sdk, Next.js)",
+    "- Related issues or designs: (#123, link)",
+    "- Target network if Stellar behaviour is involved: **Testnet** / **Mainnet**",
+    "",
+    "## Acceptance criteria",
+    "",
+    "- [ ] The feature behaves as described",
+    "- [ ] Edge cases are handled (list the important ones)",
+    "- [ ] Unit and/or integration tests cover the change",
+    "- [ ] Docs/README are updated if user-facing",
+    "",
+    sharedSections(),
+    "",
+    "## Complexity",
+    "",
+    `Suggested complexity: **${(options.complexity ?? "medium").toUpperCase()}**. Adjust the complexity label to match the real effort.`,
+    "",
+  ].join("\n");
+}
+
+function renderDocs(options: RenderTemplateOptions): string {
+  const labels = ["documentation", COMPLEXITY_LABEL[options.complexity ?? "trivial"]];
+  return [
+    frontmatter(
+      "Documentation",
+      "A documentation improvement for contributors and users",
+      "[docs] ",
+      labels,
+    ),
+    "",
+    "## Why",
+    "",
+    "What gap does this documentation fill? Who is the audience?",
+    "",
+    "## What",
+    "",
+    "Describe the documentation to be written or updated, with the files involved (e.g. `docs/SCORING.md`).",
+    "",
+    "## Acceptance criteria",
+    "",
+    "- [ ] Content is accurate and matches current behaviour",
+    "- [ ] Code examples (if any) are runnable and use placeholders for accounts/keys",
+    "- [ ] Internal and external links resolve",
+    "- [ ] Markdown renders correctly and follows the project style guide",
+    "",
+    "## Suggested execution",
+    "",
+    "- [ ] Open a pull request and link it with `Closes #<issue-number>`",
+    "- [ ] Request a review from the relevant maintainer",
+    "",
+    "## Complexity",
+    "",
+    `Suggested complexity: **${(options.complexity ?? "trivial").toUpperCase()}**. Adjust the complexity label to match the real effort.`,
+    "",
+  ].join("\n");
+}
+
+function renderBug(options: RenderTemplateOptions): string {
+  const labels = ["bug", COMPLEXITY_LABEL[options.complexity ?? "medium"]];
+  return [
+    frontmatter("Bug report", "Report a bug so contributors can fix it", "[bug] ", labels),
+    "",
+    "## Expected behaviour",
+    "",
+    "What should happen.",
+    "",
+    "## Actual behaviour",
+    "",
+    "What happens instead. Include error output where relevant.",
+    "",
+    "## Steps to reproduce",
+    "",
+    "1. (step one)",
+    "2. (step two)",
+    "",
+    "## Environment",
+    "",
+    "- Network: **Testnet** / **Mainnet**",
+    "- Package versions / SDK versions involved",
+    "- OS / browser where relevant",
+    "",
+    "## Acceptance criteria",
+    "",
+    "- [ ] The reported behaviour is fixed",
+    "- [ ] A regression test covers the reported scenario",
+    "- [ ] Existing tests still pass",
+    "",
+    "## Suggested execution",
+    "",
+    "- [ ] Reproduce the issue locally",
+    "- [ ] Fix it in a focused commit and link the PR with `Closes #<issue-number>`",
+    "",
+    "## Complexity",
+    "",
+    `Suggested complexity: **${(options.complexity ?? "medium").toUpperCase()}**. Adjust the complexity label to match the real effort.`,
+    "",
+  ].join("\n");
+}
+
+function renderQa(options: RenderTemplateOptions): string {
+  const labels = ["qa", COMPLEXITY_LABEL[options.complexity ?? "trivial"]];
+  return [
+    frontmatter(
+      "QA / test pass",
+      "A test plan for a release, feature, or regression area",
+      "[qa] ",
+      labels,
+    ),
+    "",
+    "## Why",
+    "",
+    "What area needs testing and why now?",
+    "",
+    "## Scope",
+    "",
+    "List the features, contracts, or flows to be exercised. Keep the pass bounded.",
+    "",
+    "## Test plan",
+    "",
+    "- [ ] (test scenario 1) — expected: (outcome)",
+    "- [ ] (test scenario 2) — expected: (outcome)",
+    "- [ ] (test scenario 3) — expected: (outcome)",
+    "",
+    "## Deliverable",
+    "",
+    "- [ ] A report of results, including steps to reproduce any failures",
+    "- [ ] New issues filed for each confirmed bug",
+    "- [ ] Confirmation of environment used (network, versions)",
+    "",
+    "## Suggested execution",
+    "",
+    "- [ ] Run the test plan and record results",
+    "- [ ] File issues for failures and link them in your report",
+    "",
+    "## Complexity",
+    "",
+    `Suggested complexity: **${(options.complexity ?? "trivial").toUpperCase()}**. Adjust the complexity label to match the real effort.`,
+    "",
+  ].join("\n");
+}
+
 export function renderTemplatesConfig(): string {
   return [
     "# https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/creating-a-default-community-health-file",
@@ -165,4 +334,43 @@ export function renderTemplatesConfig(): string {
     "    about: Ask questions and discuss ideas",
     "",
   ].join("\n");
+}
+
+export interface WriteTemplatesOptions {
+  complexityByType?: Partial<Record<TemplateType, WaveLevel>>;
+  waveLabel?: string;
+}
+
+export function writeIssueTemplates(
+  directory: string,
+  options: WriteTemplatesOptions = {},
+): string[] {
+  const targetDir = resolve(directory);
+  mkdirSync(targetDir, { recursive: true });
+  const written: string[] = [];
+  for (const type of TEMPLATE_TYPES) {
+    const content = renderTemplate(type, {
+      complexity: options.complexityByType?.[type],
+      waveLabel: options.waveLabel,
+    });
+    const filename = `${type}.md`;
+    const filepath = join(targetDir, filename);
+    writeFileSync(filepath, content, "utf8");
+    written.push(filepath);
+  }
+  const configPath = join(targetDir, "config.yml");
+  writeFileSync(configPath, renderTemplatesConfig(), "utf8");
+  written.push(configPath);
+  return written;
+}
+
+export function templateTypeFromName(name: string): TemplateType | undefined {
+  const normalized = name
+    .toLowerCase()
+    .replace(/[^a-z-]/g, "")
+    .replace(/^issue-/, "");
+  if ((TEMPLATE_TYPES as readonly string[]).includes(normalized)) {
+    return normalized as TemplateType;
+  }
+  return undefined;
 }
