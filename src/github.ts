@@ -212,7 +212,7 @@ export function mapGitHubIssue(issue: GitHubIssueResponse): Issue {
     number: issue.number,
     title: issue.title,
     body: issue.body ?? "",
-    labels: issue.labels.map((label) => label.name),
+    labels: (issue.labels ?? []).map((label) => label.name),
     url: issue.html_url,
     state: issue.state,
     createdAt: issue.created_at,
