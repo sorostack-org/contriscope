@@ -6,6 +6,13 @@ import {
   type ContriscopeConfig,
   type DeepPartial,
 } from "./config";
+import { GitHubError } from "./errors";
+import {
+  assessRepoReadiness,
+  fetchAllOpenIssues,
+  fetchRepoMetadata,
+  renderRepoReadiness,
+} from "./index";
 import { scoreIssue } from "./scorer";
 import type { Issue } from "./types";
 
@@ -62,7 +69,18 @@ export function readActionInputs(): ActionInputs {
 
 export async function runAction(inputs: ActionInputs): Promise<number> {
   const config = buildActionConfig(inputs);
+  const credentials = { token: inputs.token };
 
+  if (inputs.mode === "report") {
+    return runReportMode(inputs, config, credentials);
+  }
+  return runIssueMode(inputs, config);
+}
+
+async function runIssueMode(
+  inputs: ActionInputs,
+  config: ContriscopeConfig,
+): Promise<number> {
   const event = readEventPayload();
   const issueEvent = event.issue ?? event.pull_request;
   const number = inputs.issueNumber ?? issueEvent?.number;
@@ -91,6 +109,42 @@ export async function runAction(inputs: ActionInputs): Promise<number> {
     return 1;
   }
   return 0;
+}
+
+async function runReportMode(
+  inputs: ActionInputs,
+  config: ContriscopeConfig,
+  credentials: { token?: string },
+): Promise<number> {
+  if (!inputs.owner || !inputs.repo) {
+    throw new GitHubError("GITHUB_REPOSITORY is required to run the report mode.");
+  }
+
+  const repo = await fetchRepoMetadata(inputs.owner, inputs.repo, credentials);
+  const issues = await fetchAllOpenIssues(inputs.owner, inputs.repo, credentials);
+  const report = assessRepoReadiness(repo, { config, issues });
+  const markdown = renderRepoReadiness(report, "markdown", { includeRaw: false });
+
+  writeSummary(markdown);
+
+  writeOutput("score", String(report.score));
+  writeOutput("grade", report.grade);
+  writeOutput("wave-score", String(report.programs.wave.score));
+  writeOutput("grantfox-score", String(report.programs.grantfox.score));
+
+  if (inputs.failBelow !== undefined && report.score < inputs.failBelow) {
+    return 1;
+  }
+  return 0;
+}
+
+function writeSummary(content: string): void {
+  const path = process.env.GITHUB_STEP_SUMMARY;
+  if (!path) {
+    process.stdout.write(content);
+    return;
+  }
+  appendFileSync(path, content, "utf8");
 }
 
 function buildActionConfig(inputs: ActionInputs): ContriscopeConfig {
