@@ -1,0 +1,69 @@
+name: "ContriScope"
+description: >-
+  Score GitHub issues and repositories for funded-contribution readiness
+  (Drips Wave + GrantFox) on the Stellar ecosystem.
+author: "Sorostack"
+branding:
+  icon: "check-circle"
+  color: "green"
+
+inputs:
+  mode:
+    description: >-
+      "issue" scores a single issue; "report" produces a repository readiness report.
+    required: false
+    default: "issue"
+  issue-number:
+    description: >-
+      Issue number to analyse. Defaults to the issue that triggered the workflow.
+    required: false
+  owner:
+    description: Repository owner. Defaults to the workflow repository owner.
+    required: false
+  repo:
+    description: Repository name. Defaults to the workflow repository.
+    required: false
+  token:
+    description: >-
+      GitHub token with read (and comment) permissions. Defaults to the built-in
+      GITHUB_TOKEN.
+    required: false
+  comment:
+    description: "Post the report as a comment on the issue (true/false)."
+    required: false
+    default: "false"
+  stellar:
+    description: "Enable Stellar ecosystem checks (true/false)."
+    required: false
+    default: "true"
+  wave:
+    description: "Enable Drips Wave scoping checks (true/false)."
+    required: false
+    default: "true"
+  config:
+    description: >-
+      Path to a .contriscope.json config file within the repository to override defaults.
+    required: false
+  fail-below:
+    description: "Fail the step when the score is below this threshold."
+    required: false
+
+outputs:
+  score:
+    description: "The issue or repository readiness score (0-100)."
+  verdict:
+    description: "The issue verdict (ready | needs-work | blocked)."
+  grade:
+    description: "The repository readiness grade (A-F)."
+  wave-level:
+    description: "Suggested Wave complexity level (trivial | medium | high)."
+  wave-points:
+    description: "Suggested Wave points value."
+  wave-score:
+    description: "Drips Wave readiness score (0-100)."
+  grantfox-score:
+    description: "GrantFox readiness score (0-100)."
+
+runs:
+  using: "node20"
+  main: "dist/action.js"
