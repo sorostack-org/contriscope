@@ -21,6 +21,12 @@ import {
 import { parseIssueInput, parseIssuesFromDirectory } from "./parse";
 import { renderIssueAssessment, renderRepoReadiness } from "./report";
 import { scoreIssue } from "./scorer";
+import {
+  renderTemplate,
+  templateTypeFromName,
+  TEMPLATE_TYPES,
+  writeIssueTemplates,
+} from "./templates";
 import type { Issue, OutputFormat, RepoMetadata } from "./types";
 
 const HELP = `ContriScope — contributor-ready issue scoping for funded open source on Stellar.
@@ -132,6 +138,8 @@ export async function run(argv: string[]): Promise<number> {
         return await runCheck(parsed);
       case "check-repo":
         return await runCheckRepo(parsed);
+      case "template":
+        return runTemplate(parsed);
       case undefined:
         throw new UsageError("Missing command. Run `contriscope help` for usage.");
       default:
@@ -205,6 +213,68 @@ async function runCheckRepoLocal(
   const blocked =
     report.programs.wave.verdict === "blocked" || report.programs.grantfox.verdict === "blocked";
   return computeExitCode(report.score, blocked, options);
+}
+
+function runTemplate(parsed: ParsedCli): number {
+  const typeArg = parsed.positional[0] ?? "all";
+  const options = parsed.options;
+  const writeEnabled = Boolean(options.write);
+
+  const complexity = stringOption(options, "complexity");
+  const waveLevel =
+    complexity && ["trivial", "medium", "high"].includes(complexity)
+      ? (complexity as "trivial" | "medium" | "high")
+      : undefined;
+  if (complexity && !waveLevel) {
+    throw new UsageError(
+      `Invalid --complexity "${complexity}". Expected trivial, medium, or high.`,
+    );
+  }
+
+  if (typeArg === "all" && writeEnabled) {
+    const dir = stringOption(options, "dir") ?? ".github/ISSUE_TEMPLATE";
+    const written = writeIssueTemplates(dir, { complexityByType: defaultComplexityByType() });
+    process.stdout.write(`Wrote ${written.length} template file(s) to ${resolve(dir)}\n`);
+    return 0;
+  }
+
+  if (typeArg === "all") {
+    for (const type of TEMPLATE_TYPES) {
+      process.stdout.write(`### ${type}\n`);
+      process.stdout.write(`${renderTemplate(type, { complexity: waveLevel })}\n\n`);
+    }
+    return 0;
+  }
+
+  const type = templateTypeFromName(typeArg);
+  if (!type) {
+    throw new UsageError(
+      `Unknown template type "${typeArg}". Available: ${TEMPLATE_TYPES.join(", ")}`,
+    );
+  }
+
+  if (writeEnabled) {
+    const dir = stringOption(options, "dir") ?? ".github/ISSUE_TEMPLATE";
+    const written = writeIssueTemplates(dir, {
+      complexityByType: { [type]: waveLevel ?? "medium" },
+    });
+    process.stdout.write(`Wrote ${written.length} template file(s) to ${resolve(dir)}\n`);
+    return 0;
+  }
+
+  process.stdout.write(`${renderTemplate(type, { complexity: waveLevel })}\n`);
+  return 0;
+}
+
+function defaultComplexityByType(): Record<string, "trivial" | "medium" | "high"> {
+  return {
+    "good-first-issue": "trivial",
+    soroban: "medium",
+    feature: "medium",
+    docs: "trivial",
+    bug: "medium",
+    qa: "trivial",
+  };
 }
 
 function readLocalIssues(dir: string): Issue[] {
