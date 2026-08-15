@@ -52,8 +52,7 @@ Commands:
                                  --path <dir>, --token <token>, --format <fmt>,
                                  --fail-below <n>, --config <path>
 
-  template [type]       Print an issue template. Types: good-first-issue, soroban,
-                        feature, docs, bug, qa.
+  template [type]       Print an issue template. Types: ${TEMPLATE_TYPES.join(", ")}.
                         Add --write to save templates to .github/ISSUE_TEMPLATE
                         (use 'all' to write every template). Options: --dir <path>,
                                  --complexity <trivial|medium|high>
@@ -158,6 +157,27 @@ export async function run(argv: string[]): Promise<number> {
     }
     throw error;
   }
+}
+
+async function runCheck(parsed: ParsedCli): Promise<number> {
+  const target = parsed.positional[0];
+  if (!target) {
+    throw new UsageError("Missing issue input. Usage: contriscope check <file|->");
+  }
+
+  const content = target === "-" ? await readStdin() : readFile(target);
+  const filename = target === "-" ? undefined : target;
+  const { issue } = parseIssueInput(content, filename);
+  const config = resolveConfig(parsed.options);
+  const assessment = scoreIssue(issue, { config });
+  const format = optionFormat(parsed.options);
+  const colors = Boolean(process.stdout.isTTY);
+
+  process.stdout.write(
+    `${renderIssueAssessment(assessment, format, { colors, includeRaw: format === "json" })}\n`,
+  );
+
+  return computeExitCode(assessment.score, assessment.verdict === "blocked", parsed.options);
 }
 
 async function runCheckRepo(parsed: ParsedCli): Promise<number> {
@@ -312,40 +332,80 @@ function runConfig(parsed: ParsedCli): number {
   return 0;
 }
 
-function writeJsonFile(path: string, value: unknown): void {
-  const dir = path.substring(0, Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/")));
-  if (dir && !existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+function resolveConfig(options: CliOptions): ContriscopeConfig {
+  const configPath = stringOption(options, "config");
+  const base = configPath ? loadConfigFile(configPath) : DEFAULT_CONFIG;
+  const overrides: DeepPartial<ContriscopeConfig> = {};
+
+  if (options["no-stellar"]) {
+    overrides.stellar = false;
   }
-  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  if (options["no-wave"]) {
+    overrides.program = { ...(overrides.program ?? {}), wave: false };
+  }
+  return mergeConfig(overrides, base);
 }
 
-function readLocalIssues(dir: string): Issue[] {
-  const files = readdirSync(dir).filter((name) => name.endsWith(".md") || name.endsWith(".json"));
-  const issues: Issue[] = [];
-  for (const file of files) {
-    const content = readFileSync(join(dir, file), "utf8");
-    issues.push(...parseIssuesFromDirectory(content, file));
+function optionFormat(options: CliOptions): OutputFormat {
+  const value = stringOption(options, "format");
+  if (!value) {
+    return "text";
   }
-  return issues;
+  if (value === "json" || value === "markdown" || value === "text") {
+    return value;
+  }
+  throw new UsageError(`Invalid --format "${value}". Expected text, json, or markdown.`);
 }
 
-function readLocalRepoMetadata(dir: string, name: string): RepoMetadata {
-  const has = (path: string) => existsSync(join(dir, path));
-  const readme = has("README.md") ? readFileSync(join(dir, "README.md"), "utf8") : undefined;
-  return {
-    name,
-    hasREADME: has("README.md"),
-    readmeLength: readme?.length,
-    hasContributing: has("CONTRIBUTING.md"),
-    hasLicense: has("LICENSE") || has("LICENSE.md"),
-    hasCodeOfConduct: has("CODE_OF_CONDUCT.md") || has("CODE_OF_CONDUCT"),
-    hasSecurity: has("SECURITY.md"),
-    hasDocs: has("docs"),
-    hasCi: has(".github/workflows"),
-    hasIssueTemplates: has(".github/ISSUE_TEMPLATE"),
-    hasPullRequestTemplates: has(".github/PULL_REQUEST_TEMPLATE.md"),
-  };
+function computeExitCode(score: number, blocked: boolean, options: CliOptions): number {
+  const failBelow = stringOption(options, "fail-below");
+  if (failBelow !== undefined) {
+    const threshold = Number(failBelow);
+    if (Number.isNaN(threshold)) {
+      throw new UsageError(`Invalid --fail-below value "${failBelow}". Expected a number.`);
+    }
+    return score < threshold ? 1 : 0;
+  }
+  return blocked ? 1 : 0;
+}
+
+function readVersion(): string {
+  try {
+    const packageJson = readFileSync(join(__dirname, "..", "package.json"), "utf8");
+    const parsed = JSON.parse(packageJson) as { version?: string };
+    return parsed.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function readFile(target: string): string {
+  if (!existsSync(target)) {
+    throw new UsageError(`File not found: ${target}`);
+  }
+  return readFileSync(target, "utf8");
+}
+
+function readStdin(): Promise<string> {
+  return new Promise((resolvePromise, reject) => {
+    const chunks: Buffer[] = [];
+    process.stdin.on("data", (chunk: Buffer) => chunks.push(chunk));
+    process.stdin.on("end", () => resolvePromise(Buffer.concat(chunks).toString("utf8")));
+    process.stdin.on("error", (error) => reject(error));
+  });
+}
+
+function tokenFromEnv(options: CliOptions): string | undefined {
+  const explicit = stringOption(options, "token");
+  if (explicit) {
+    return explicit;
+  }
+  return process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
+}
+
+function stringOption(options: CliOptions, key: string): string | undefined {
+  const value = options[key];
+  return typeof value === "string" ? value : undefined;
 }
 
 async function enrichRepoMetadata(
@@ -391,101 +451,40 @@ async function enrichRepoMetadata(
   };
 }
 
-function tokenFromEnv(options: CliOptions): string | undefined {
-  const explicit = stringOption(options, "token");
-  if (explicit) {
-    return explicit;
+function readLocalIssues(dir: string): Issue[] {
+  const files = readdirSync(dir).filter((name) => name.endsWith(".md") || name.endsWith(".json"));
+  const issues: Issue[] = [];
+  for (const file of files) {
+    const content = readFileSync(join(dir, file), "utf8");
+    issues.push(...parseIssuesFromDirectory(content, file));
   }
-  return process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
+  return issues;
 }
 
-async function runCheck(parsed: ParsedCli): Promise<number> {
-  const target = parsed.positional[0];
-  if (!target) {
-    throw new UsageError("Missing issue input. Usage: contriscope check <file|->");
-  }
-
-  const content = target === "-" ? await readStdin() : readFile(target);
-  const filename = target === "-" ? undefined : target;
-  const { issue } = parseIssueInput(content, filename);
-  const config = resolveConfig(parsed.options);
-  const assessment = scoreIssue(issue, { config });
-  const format = optionFormat(parsed.options);
-  const colors = Boolean(process.stdout.isTTY);
-
-  process.stdout.write(
-    `${renderIssueAssessment(assessment, format, { colors, includeRaw: format === "json" })}\n`,
-  );
-
-  return computeExitCode(assessment.score, assessment.verdict === "blocked", parsed.options);
+function readLocalRepoMetadata(dir: string, name: string): RepoMetadata {
+  const has = (path: string) => existsSync(join(dir, path));
+  const readme = has("README.md") ? readFileSync(join(dir, "README.md"), "utf8") : undefined;
+  return {
+    name,
+    hasREADME: has("README.md"),
+    readmeLength: readme?.length,
+    hasContributing: has("CONTRIBUTING.md"),
+    hasLicense: has("LICENSE") || has("LICENSE.md"),
+    hasCodeOfConduct: has("CODE_OF_CONDUCT.md") || has("CODE_OF_CONDUCT"),
+    hasSecurity: has("SECURITY.md"),
+    hasDocs: has("docs"),
+    hasCi: has(".github/workflows"),
+    hasIssueTemplates: has(".github/ISSUE_TEMPLATE"),
+    hasPullRequestTemplates: has(".github/PULL_REQUEST_TEMPLATE.md"),
+  };
 }
 
-function resolveConfig(options: CliOptions): ContriscopeConfig {
-  const configPath = stringOption(options, "config");
-  const base = configPath ? loadConfigFile(configPath) : DEFAULT_CONFIG;
-  const overrides: DeepPartial<ContriscopeConfig> = {};
-
-  if (options["no-stellar"]) {
-    overrides.stellar = false;
+function writeJsonFile(path: string, value: unknown): void {
+  const dir = path.substring(0, Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/")));
+  if (dir && !existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
   }
-  if (options["no-wave"]) {
-    overrides.program = { ...(overrides.program ?? {}), wave: false };
-  }
-  return mergeConfig(overrides, base);
-}
-
-function optionFormat(options: CliOptions): OutputFormat {
-  const value = stringOption(options, "format");
-  if (!value) {
-    return "text";
-  }
-  if (value === "json" || value === "markdown" || value === "text") {
-    return value;
-  }
-  throw new UsageError(`Invalid --format "${value}". Expected text, json, or markdown.`);
-}
-
-function computeExitCode(score: number, blocked: boolean, options: CliOptions): number {
-  const failBelow = stringOption(options, "fail-below");
-  if (failBelow !== undefined) {
-    const threshold = Number(failBelow);
-    if (Number.isNaN(threshold)) {
-      throw new UsageError(`Invalid --fail-below value "${failBelow}". Expected a number.`);
-    }
-    return score < threshold ? 1 : 0;
-  }
-  return blocked ? 1 : 0;
-}
-
-function readFile(target: string): string {
-  if (!existsSync(target)) {
-    throw new UsageError(`File not found: ${target}`);
-  }
-  return readFileSync(target, "utf8");
-}
-
-function readStdin(): Promise<string> {
-  return new Promise((resolvePromise, reject) => {
-    const chunks: Buffer[] = [];
-    process.stdin.on("data", (chunk: Buffer) => chunks.push(chunk));
-    process.stdin.on("end", () => resolvePromise(Buffer.concat(chunks).toString("utf8")));
-    process.stdin.on("error", (error) => reject(error));
-  });
-}
-
-function stringOption(options: CliOptions, key: string): string | undefined {
-  const value = options[key];
-  return typeof value === "string" ? value : undefined;
-}
-
-function readVersion(): string {
-  try {
-    const packageJson = readFileSync(join(__dirname, "..", "package.json"), "utf8");
-    const parsed = JSON.parse(packageJson) as { version?: string };
-    return parsed.version ?? "0.0.0";
-  } catch {
-    return "0.0.0";
-  }
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 export async function main(): Promise<void> {
