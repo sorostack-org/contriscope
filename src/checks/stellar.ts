@@ -17,14 +17,34 @@ const STELLAR_MARKERS = [
   "stellar-sdk",
   "soroban-rpc",
   "seps",
+  "transaction",
+  "horizon",
+  "memo",
+  "sequence",
+  "sign",
+  "account",
+  "payment",
+  "transfer",
+  "asset",
+  "usdc",
+  "contract",
+  "wasm",
+  "smart contract",
 ];
 
 const KNOWN_SES = [
-  1, 5, 6, 7, 8, 10, 12, 18, 20, 21, 22, 23, 24, 25, 27, 29, 30, 31, 35, 38, 40, 41, 42, 43, 44,
-  45, 46, 49, 52, 64,
+  1, 5, 6, 7, 8, 10, 12, 18, 20, 21, 22, 23, 24, 25, 27, 29, 30, 31, 35, 38, 40, 41, 42, 43, 44, 45,
+  46, 49, 52, 64,
 ];
 
-const EXAMPLE_CONTEXT_TERMS = ["example", "placeholder", "replace", "e.g.", "for example", "sample"];
+const EXAMPLE_CONTEXT_TERMS = [
+  "example",
+  "placeholder",
+  "replace",
+  "e.g.",
+  "for example",
+  "sample",
+];
 
 export interface StellarInput {
   config: ContriscopeConfig;
@@ -82,14 +102,16 @@ export function checkStellar(input: StellarInput): StellarResult {
         "info",
         "Testnet funding not mentioned",
         "Contributors building on Testnet need free XLM to sign transactions.",
-        'Mention Friendbot for funding a Testnet account, e.g. `https://friendbot.stellar.org`.',
+        "Mention Friendbot for funding a Testnet account, e.g. `https://friendbot.stellar.org`.",
       ),
     );
   }
 
   const publicKeyMatches = haystack.match(/\bG[A-Z2-7]{55}\b/g);
   if (publicKeyMatches && publicKeyMatches.length > 0) {
-    const exampleContext = EXAMPLE_CONTEXT_TERMS.some((term) => haystack.toLowerCase().includes(term));
+    const exampleContext = EXAMPLE_CONTEXT_TERMS.some((term) =>
+      haystack.toLowerCase().includes(term),
+    );
     add(
       makeFinding(
         "stellar.public-key",
@@ -134,6 +156,34 @@ export function checkStellar(input: StellarInput): StellarResult {
         ),
       );
     }
+  }
+
+  const mentionsSoroban = hasAny(haystack, ["soroban", "contract", "wasm", "smart contract"]);
+  if (mentionsSoroban) {
+    add(
+      makeFinding(
+        "stellar.soroban-context",
+        "stellar",
+        "info",
+        "Soroban contract work",
+        "Contract work benefits from extra context for contributors.",
+        "Include the contract ID (CA...), relevant storage keys, and the admin/authority account where relevant.",
+      ),
+    );
+  }
+
+  const assetCodeMatches = haystack.match(/\b([A-Z0-9]{2,12})\b/g);
+  if (assetCodeMatches && hasAny(haystack, ["asset", "xlm", "trustline", "issuer"])) {
+    add(
+      makeFinding(
+        "stellar.asset-context",
+        "stellar",
+        "info",
+        "Asset references present",
+        "The issue mentions assets; contributors need the asset code and issuer to build correctly.",
+        "State the asset code (e.g. `USDC`) and its issuer, or confirm native XLM.",
+      ),
+    );
   }
 
   return { active: true, score: clampScore(100 - penalty), findings };
