@@ -1,3 +1,4 @@
+import { ConfigError } from "./errors";
 import type { DimensionId } from "./types";
 
 export interface Weights {
@@ -206,3 +207,77 @@ export const DEFAULT_CONFIG: ContriscopeConfig = {
 export type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
 };
+
+export function deepMerge<T>(base: T, overrides: DeepPartial<T>): T {
+  if (Array.isArray(base) || Array.isArray(overrides)) {
+    return (overrides === undefined ? base : overrides) as unknown as T;
+  }
+  if (
+    typeof base === "object" &&
+    base !== null &&
+    typeof overrides === "object" &&
+    overrides !== null
+  ) {
+    const result: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+    for (const key of Object.keys(overrides as Record<string, unknown>)) {
+      const baseValue = (base as Record<string, unknown>)[key];
+      const overrideValue = (overrides as Record<string, unknown>)[key];
+      if (
+        typeof baseValue === "object" &&
+        baseValue !== null &&
+        !Array.isArray(baseValue) &&
+        typeof overrideValue === "object" &&
+        overrideValue !== null &&
+        !Array.isArray(overrideValue)
+      ) {
+        result[key] = deepMerge(baseValue, overrideValue as DeepPartial<typeof baseValue>);
+      } else {
+        result[key] = overrideValue;
+      }
+    }
+    return result as unknown as T;
+  }
+  return (overrides === undefined ? base : overrides) as unknown as T;
+}
+
+export function validateConfig(config: ContriscopeConfig): void {
+  if (typeof config.program !== "object" || config.program === null) {
+    throw new ConfigError("`program` must be an object.");
+  }
+  const weightIds: DimensionId[] = [
+    "clarity",
+    "scope",
+    "acceptance",
+    "context",
+    "guidance",
+    "metadata",
+    "stellar",
+  ];
+  const total = weightIds.reduce((sum, id) => sum + (config.weights[id] ?? 0), 0);
+  if (total <= 0) {
+    throw new ConfigError("The sum of `weights` must be greater than zero.");
+  }
+  for (const [name, value] of Object.entries(config.verdict)) {
+    if (typeof value !== "number" || value < 0 || value > 100) {
+      throw new ConfigError(`verdict.${name} must be a number between 0 and 100.`);
+    }
+  }
+  if (config.verdict.ready <= config.verdict.needsWork) {
+    throw new ConfigError("`verdict.ready` must be greater than `verdict.needsWork`.");
+  }
+  if (!Array.isArray(config.vagueTerms) || config.vagueTerms.length === 0) {
+    throw new ConfigError("`vagueTerms` must be a non-empty array.");
+  }
+  if (!Array.isArray(config.wave.highSignals)) {
+    throw new ConfigError("`wave.highSignals` must be an array.");
+  }
+}
+
+export function mergeConfig(
+  overrides?: DeepPartial<ContriscopeConfig>,
+  base: ContriscopeConfig = DEFAULT_CONFIG,
+): ContriscopeConfig {
+  const merged = overrides ? deepMerge(base, overrides) : base;
+  validateConfig(merged);
+  return merged;
+}
