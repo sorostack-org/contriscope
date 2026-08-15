@@ -82,6 +82,53 @@ export async function fetchIssue(
   return mapGitHubIssue(payload);
 }
 
+export interface FetchIssuesOptions {
+  state?: "open" | "closed" | "all";
+  perPage?: number;
+  page?: number;
+  excludePullRequests?: boolean;
+}
+
+export async function fetchIssues(
+  owner: string,
+  repo: string,
+  credentials: GitHubCredentials = {},
+  options: FetchIssuesOptions = {},
+): Promise<Issue[]> {
+  const { state = "open", perPage = 100, page = 1, excludePullRequests = true } = options;
+  const query = new URLSearchParams({ state, per_page: String(perPage), page: String(page) });
+  const payload = await githubRequest<GitHubIssueResponse[]>(
+    `/repos/${owner}/${repo}/issues?${query.toString()}`,
+    credentials,
+  );
+  return payload
+    .filter((issue) => !excludePullRequests || issue.pull_request === undefined)
+    .map(mapGitHubIssue);
+}
+
+export async function fetchRepoMetadata(
+  owner: string,
+  repo: string,
+  credentials: GitHubCredentials = {},
+): Promise<RepoMetadata> {
+  const payload = await githubRequest<GitHubRepoResponse>(`/repos/${owner}/${repo}`, credentials);
+  return {
+    name: repo,
+    owner,
+    description: payload.description ?? undefined,
+    defaultBranch: payload.default_branch,
+    openIssues: payload.open_issues_count,
+    stars: payload.stargazers_count,
+    forks: payload.forks_count,
+    homepage: payload.homepage ?? undefined,
+    primaryLanguage: payload.language ?? undefined,
+    hasREADME: true,
+    hasContributing: true,
+    hasDocs: true,
+    hasCi: true,
+  };
+}
+
 export function mapGitHubIssue(issue: GitHubIssueResponse): Issue {
   return {
     number: issue.number,
