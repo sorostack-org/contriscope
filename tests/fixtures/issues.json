@@ -1,0 +1,10 @@
+[
+  {
+    "title": "Fix typo in README",
+    "body": "Rename the heading to fix the spelling mistake. The current text says 'conributor' and the README section should match the contribution guide. Closes #12."
+  },
+  {
+    "title": "Add unit tests for the scope scoring module",
+    "body": "Cover the scoring helpers in src/checks/scope.ts with unit tests including edge cases. Acceptance criteria: tests pass and coverage is maintained. Closes #13."
+  }
+]
