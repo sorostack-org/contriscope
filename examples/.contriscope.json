@@ -1,0 +1,20 @@
+{
+  "program": {
+    "wave": true,
+    "grantfox": true
+  },
+  "stellar": true,
+  "verdict": {
+    "ready": 80,
+    "needsWork": 55
+  },
+  "labels": {
+    "goodFirstIssue": "good first issue",
+    "wave": "Stellar Wave",
+    "complexity": {
+      "trivial": "complexity: trivial",
+      "medium": "complexity: medium",
+      "high": "complexity: high"
+    }
+  }
+}
