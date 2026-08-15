@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build output (compiled artifacts must be refreshed via `npm run build` before release)
+# NOTE: `dist/` is intentionally committed so the GitHub Action can run without a build step.
+# Keep it in sync: run `npm run build` before pushing.
+dist/**/*.js.map
+dist/**/*.d.ts.map
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Test output
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+.pids
+*.pid
+*.seed
+
+# Optional npm cache
+.npm
+
+# Lint caches
+.eslintcache
+.stylelintcache
+
+# dotenv environment variable files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+
+# Husky
+.husky/_
+
+# Temporary
+.tmp/
