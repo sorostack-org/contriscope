@@ -7,9 +7,12 @@ import type {
   Finding,
   Issue,
   IssueAssessment,
+  ProgramChecklistItem,
+  ProgramReadiness,
   ReadinessSection,
   RepoMetadata,
   RepoReadiness,
+  Verdict,
 } from "./types";
 
 export interface AssessRepoReadinessOptions {
@@ -32,6 +35,8 @@ export function assessRepoReadiness(
   const issues = options.issues ?? [];
 
   const assessments = issues.map((issue) => scoreIssue(issue, { config }));
+  const avgIssueScore = average(assessments.map((a) => a.score));
+  const avgScope = average(assessments.map((a) => dimensionScore(a, "scope")));
 
   const sections = buildSections(repo, assessments, issues, config);
   const totalScore = Math.round(
@@ -40,15 +45,19 @@ export function assessRepoReadiness(
   const grade = computeGrade(totalScore);
   const findings = sections.flatMap((section) => section.findings);
 
+  const wave = buildProgramReadiness("drips-wave", "Drips Wave", repo, assessments, issues, config);
+  const grantfox = buildProgramReadiness("grantfox", "GrantFox", repo, assessments, issues, config);
+
   return {
     repo,
     score: totalScore,
     grade,
     sections,
     findings,
+    programs: { wave, grantfox },
     issuesScored: assessments.length,
     issuesTotal: issues.length,
-  } as RepoReadiness;
+  };
 }
 
 function buildSections(
@@ -333,6 +342,123 @@ function ecosystemItems(
       label: "Issue data available",
       met: issues.length > 0,
       detail: issues.length > 0 ? `${issues.length} issue(s) analysed.` : "No issues provided.",
+    },
+  ];
+}
+
+function buildProgramReadiness(
+  name: "drips-wave" | "grantfox",
+  label: string,
+  repo: RepoMetadata,
+  assessments: IssueAssessment[],
+  issues: Issue[],
+  config: ContriscopeConfig,
+): ProgramReadiness {
+  const items =
+    name === "drips-wave"
+      ? waveItems(repo, assessments, config)
+      : grantfoxItems(repo, assessments, issues);
+  const metCount = items.filter((item) => item.met).length;
+  const score = items.length > 0 ? Math.round((metCount / items.length) * 100) : 0;
+  const verdict: Verdict =
+    score >= config.verdict.ready
+      ? "ready"
+      : score >= config.verdict.needsWork
+        ? "needs-work"
+        : "blocked";
+  return { name, label, score, verdict, checklist: items };
+}
+
+function waveItems(
+  repo: RepoMetadata,
+  assessments: IssueAssessment[],
+  config: ContriscopeConfig,
+): ProgramChecklistItem[] {
+  const withSignals = assessments.filter((a) => (a.wave?.signals.length ?? 0) > 0).length;
+  const avgScope = average(assessments.map((a) => dimensionScore(a, "scope")));
+  return [
+    {
+      id: "open-issues",
+      label: "There are issues to contribute to",
+      met: assessments.length > 0,
+      detail:
+        assessments.length > 0
+          ? `${assessments.length} issue(s) available.`
+          : "No issues available.",
+    },
+    {
+      id: "single-wave-scope",
+      label: "Issues are scoped for a single wave",
+      met: assessments.length === 0 || avgScope >= 70,
+      detail: `Average scope score: ${Math.round(avgScope)}/100.`,
+    },
+    {
+      id: "complexity-signals",
+      label: "Issues carry complexity signals",
+      met: assessments.length > 0 && withSignals / assessments.length >= 0.5,
+      detail:
+        assessments.length > 0
+          ? `${withSignals}/${assessments.length} issues produced complexity signals.`
+          : "No issues to analyse.",
+    },
+    {
+      id: "onboarding",
+      label: "Contributor onboarding is documented",
+      met: Boolean(repo.hasREADME && repo.hasContributing),
+      detail: `${repo.hasREADME ? "README ✓" : "README ✗"} · ${repo.hasContributing ? "CONTRIBUTING ✓" : "CONTRIBUTING ✗"}.`,
+    },
+    {
+      id: "labels",
+      label: "Wave complexity tagging is possible",
+      met: Boolean(config.program.wave),
+      detail: "Wave program checks are enabled.",
+    },
+  ];
+}
+
+function grantfoxItems(
+  repo: RepoMetadata,
+  assessments: IssueAssessment[],
+  issues: Issue[],
+): ProgramChecklistItem[] {
+  const avgScore = average(assessments.map((a) => a.score));
+  const avgScope = average(assessments.map((a) => dimensionScore(a, "scope")));
+  return [
+    {
+      id: "readme",
+      label: "README present",
+      met: Boolean(repo.hasREADME),
+      detail: repo.hasREADME ? "README present." : "README missing.",
+    },
+    {
+      id: "contributing",
+      label: "CONTRIBUTING guide present",
+      met: Boolean(repo.hasContributing),
+      detail: repo.hasContributing ? "CONTRIBUTING present." : "CONTRIBUTING missing.",
+    },
+    {
+      id: "issue-quality",
+      label: "Issue quality is high",
+      met: assessments.length === 0 || avgScore >= 70,
+      detail: `Average issue score: ${Math.round(avgScore)}/100.`,
+    },
+    {
+      id: "scope",
+      label: "Issues are well scoped",
+      met: assessments.length === 0 || avgScope >= 70,
+      detail: `Average scope score: ${Math.round(avgScope)}/100.`,
+    },
+    {
+      id: "activity",
+      label: "Repository is active",
+      met: (repo.openIssues ?? 0) + (repo.closedIssues ?? 0) > 0,
+      detail: `${repo.openIssues ?? 0} open, ${repo.closedIssues ?? 0} closed issues.`,
+    },
+    {
+      id: "templates",
+      label: "Issue templates exist",
+      met: Boolean(repo.hasIssueTemplates),
+      detail: repo.hasIssueTemplates ? "Issue templates present." : "Issue templates missing.",
     },
   ];
 }
