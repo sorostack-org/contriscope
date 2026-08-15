@@ -1,8 +1,19 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  DEFAULT_CONFIG,
+  loadConfigFile,
+  mergeConfig,
+  type ContriscopeConfig,
+  type DeepPartial,
+} from "./config";
 import { UsageError } from "./errors";
+import { parseIssueInput } from "./parse";
+import { renderIssueAssessment } from "./report";
+import { scoreIssue } from "./scorer";
+import type { OutputFormat } from "./types";
 
 const HELP = `ContriScope — contributor-ready issue scoping for funded open source on Stellar.
 
@@ -109,6 +120,8 @@ export async function run(argv: string[]): Promise<number> {
 
   try {
     switch (parsed.command) {
+      case "check":
+        return await runCheck(parsed);
       case undefined:
         throw new UsageError("Missing command. Run `contriscope help` for usage.");
       default:
@@ -123,6 +136,85 @@ export async function run(argv: string[]): Promise<number> {
     }
     throw error;
   }
+}
+
+async function runCheck(parsed: ParsedCli): Promise<number> {
+  const target = parsed.positional[0];
+  if (!target) {
+    throw new UsageError("Missing issue input. Usage: contriscope check <file|->");
+  }
+
+  const content = target === "-" ? await readStdin() : readFile(target);
+  const filename = target === "-" ? undefined : target;
+  const { issue } = parseIssueInput(content, filename);
+  const config = resolveConfig(parsed.options);
+  const assessment = scoreIssue(issue, { config });
+  const format = optionFormat(parsed.options);
+  const colors = Boolean(process.stdout.isTTY);
+
+  process.stdout.write(
+    `${renderIssueAssessment(assessment, format, { colors, includeRaw: format === "json" })}\n`,
+  );
+
+  return computeExitCode(assessment.score, assessment.verdict === "blocked", parsed.options);
+}
+
+function resolveConfig(options: CliOptions): ContriscopeConfig {
+  const configPath = stringOption(options, "config");
+  const base = configPath ? loadConfigFile(configPath) : DEFAULT_CONFIG;
+  const overrides: DeepPartial<ContriscopeConfig> = {};
+
+  if (options["no-stellar"]) {
+    overrides.stellar = false;
+  }
+  if (options["no-wave"]) {
+    overrides.program = { ...(overrides.program ?? {}), wave: false };
+  }
+  return mergeConfig(overrides, base);
+}
+
+function optionFormat(options: CliOptions): OutputFormat {
+  const value = stringOption(options, "format");
+  if (!value) {
+    return "text";
+  }
+  if (value === "json" || value === "markdown" || value === "text") {
+    return value;
+  }
+  throw new UsageError(`Invalid --format "${value}". Expected text, json, or markdown.`);
+}
+
+function computeExitCode(score: number, blocked: boolean, options: CliOptions): number {
+  const failBelow = stringOption(options, "fail-below");
+  if (failBelow !== undefined) {
+    const threshold = Number(failBelow);
+    if (Number.isNaN(threshold)) {
+      throw new UsageError(`Invalid --fail-below value "${failBelow}". Expected a number.`);
+    }
+    return score < threshold ? 1 : 0;
+  }
+  return blocked ? 1 : 0;
+}
+
+function readFile(target: string): string {
+  if (!existsSync(target)) {
+    throw new UsageError(`File not found: ${target}`);
+  }
+  return readFileSync(target, "utf8");
+}
+
+function readStdin(): Promise<string> {
+  return new Promise((resolvePromise, reject) => {
+    const chunks: Buffer[] = [];
+    process.stdin.on("data", (chunk: Buffer) => chunks.push(chunk));
+    process.stdin.on("end", () => resolvePromise(Buffer.concat(chunks).toString("utf8")));
+    process.stdin.on("error", (error) => reject(error));
+  });
+}
+
+function stringOption(options: CliOptions, key: string): string | undefined {
+  const value = options[key];
+  return typeof value === "string" ? value : undefined;
 }
 
 function readVersion(): string {
