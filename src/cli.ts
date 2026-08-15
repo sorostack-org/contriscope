@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import {
   DEFAULT_CONFIG,
@@ -140,6 +140,10 @@ export async function run(argv: string[]): Promise<number> {
         return await runCheckRepo(parsed);
       case "template":
         return runTemplate(parsed);
+      case "init":
+        return runInit(parsed);
+      case "config":
+        return runConfig(parsed);
       case undefined:
         throw new UsageError("Missing command. Run `contriscope help` for usage.");
       default:
@@ -275,6 +279,45 @@ function defaultComplexityByType(): Record<string, "trivial" | "medium" | "high"
     bug: "medium",
     qa: "trivial",
   };
+}
+
+function runInit(parsed: ParsedCli): number {
+  const dir = resolve(stringOption(parsed.options, "dir") ?? ".");
+  const configPath = join(dir, ".contriscope.json");
+  const templateDir = join(dir, ".github", "ISSUE_TEMPLATE");
+
+  const written: string[] = [];
+  if (!existsSync(configPath)) {
+    writeJsonFile(configPath, DEFAULT_CONFIG);
+    written.push(configPath);
+  }
+
+  const templateFiles = writeIssueTemplates(templateDir, {
+    complexityByType: defaultComplexityByType(),
+  });
+  written.push(...templateFiles);
+
+  process.stdout.write(
+    `Initialised ContriScope in ${dir}.\n${written.map((p) => `  - ${p}`).join("\n")}\n`,
+  );
+  if (existsSync(configPath) && written.indexOf(configPath) === -1) {
+    process.stdout.write(`Note: ${configPath} already exists and was not overwritten.\n`);
+  }
+  return 0;
+}
+
+function runConfig(parsed: ParsedCli): number {
+  const config = resolveConfig(parsed.options);
+  process.stdout.write(`${JSON.stringify(config, null, 2)}\n`);
+  return 0;
+}
+
+function writeJsonFile(path: string, value: unknown): void {
+  const dir = path.substring(0, Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/")));
+  if (dir && !existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 function readLocalIssues(dir: string): Issue[] {
