@@ -9,11 +9,19 @@ import {
   type ContriscopeConfig,
   type DeepPartial,
 } from "./config";
-import { UsageError } from "./errors";
+import { ContriscopeError, GitHubError, UsageError } from "./errors";
+import {
+  assessRepoReadiness,
+  fetchAllOpenIssues,
+  fetchRepoFile,
+  fetchRepoMetadata,
+  fetchRepoFiles,
+  parseRepositorySlug,
+} from "./index";
 import { parseIssueInput } from "./parse";
-import { renderIssueAssessment } from "./report";
+import { renderIssueAssessment, renderRepoReadiness } from "./report";
 import { scoreIssue } from "./scorer";
-import type { OutputFormat } from "./types";
+import type { OutputFormat, RepoMetadata } from "./types";
 
 const HELP = `ContriScope — contributor-ready issue scoping for funded open source on Stellar.
 
@@ -122,6 +130,8 @@ export async function run(argv: string[]): Promise<number> {
     switch (parsed.command) {
       case "check":
         return await runCheck(parsed);
+      case "check-repo":
+        return await runCheckRepo(parsed);
       case undefined:
         throw new UsageError("Missing command. Run `contriscope help` for usage.");
       default:
@@ -130,12 +140,94 @@ export async function run(argv: string[]): Promise<number> {
         );
     }
   } catch (error) {
-    if (error instanceof Error) {
+    if (error instanceof ContriscopeError) {
       process.stderr.write(`Error: ${error.message}\n`);
       return 2;
     }
     throw error;
   }
+}
+
+async function runCheckRepo(parsed: ParsedCli): Promise<number> {
+  const options = parsed.options;
+  const config = resolveConfig(options);
+  const format = optionFormat(options);
+
+  const slug = stringOption(options, "slug");
+  const owner = stringOption(options, "owner");
+  const repo = stringOption(options, "repo");
+  if (!slug && (!owner || !repo)) {
+    throw new UsageError(
+      "check-repo needs --slug owner/repo (or --owner and --repo), or --path <dir>.",
+    );
+  }
+  const resolved = slug
+    ? parseRepositorySlug(slug)
+    : { owner: owner as string, repo: repo as string };
+  const token = tokenFromEnv(options);
+
+  const repoMetadata = await fetchRepoMetadata(resolved.owner, resolved.repo, { token });
+  const enriched = await enrichRepoMetadata(resolved.owner, resolved.repo, repoMetadata, { token });
+  const issues = await fetchAllOpenIssues(resolved.owner, resolved.repo, { token });
+  const report = assessRepoReadiness(enriched, { config, issues });
+  process.stdout.write(
+    `${renderRepoReadiness(report, format, { includeRaw: format === "json" })}\n`,
+  );
+
+  const blocked =
+    report.programs.wave.verdict === "blocked" || report.programs.grantfox.verdict === "blocked";
+  return computeExitCode(report.score, blocked, options);
+}
+
+async function enrichRepoMetadata(
+  owner: string,
+  repo: string,
+  metadata: RepoMetadata,
+  credentials: { token?: string },
+): Promise<RepoMetadata> {
+  const rootFiles = await fetchRepoFiles(owner, repo, "", credentials).catch(() => [] as string[]);
+  const has = (name: string) => rootFiles.includes(name);
+  const readme = has("README.md")
+    ? await fetchRepoFile(owner, repo, "README.md", credentials)
+    : undefined;
+  const docsDir = rootFiles.some((name) => name === "docs" || name === "documentation");
+  const workflows = has(".github")
+    ? await fetchRepoFiles(owner, repo, ".github/workflows", credentials).catch(
+        () => [] as string[],
+      )
+    : [];
+  const issueTemplates = has(".github")
+    ? await fetchRepoFiles(owner, repo, ".github/ISSUE_TEMPLATE", credentials).catch(
+        () => [] as string[],
+      )
+    : [];
+  const dotGithubFiles = has(".github")
+    ? await fetchRepoFiles(owner, repo, ".github", credentials).catch(() => [] as string[])
+    : [];
+
+  return {
+    ...metadata,
+    hasREADME: has("README.md"),
+    readmeLength: readme?.length,
+    hasContributing: has("CONTRIBUTING.md"),
+    hasLicense: rootFiles.some((name) => /^licen[cs]e/i.test(name)),
+    hasCodeOfConduct: rootFiles.some((name) => /code[_ -]?of[-_ ]?conduct/i.test(name)),
+    hasSecurity: has("SECURITY.md"),
+    hasDocs: docsDir,
+    hasCi: workflows.length > 0,
+    hasIssueTemplates: issueTemplates.length > 0,
+    hasPullRequestTemplates: dotGithubFiles.some(
+      (name) => name.toLowerCase() === "pull_request_template.md",
+    ),
+  };
+}
+
+function tokenFromEnv(options: CliOptions): string | undefined {
+  const explicit = stringOption(options, "token");
+  if (explicit) {
+    return explicit;
+  }
+  return process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
 }
 
 async function runCheck(parsed: ParsedCli): Promise<number> {
