@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/Sorostack/contriscope/main/contriscope.schema.json",
+  "title": "ContriScope configuration",
+  "description": "Configuration schema for ContriScope. Create a .contriscope.json file with a $schema reference to this file for editor autocompletion.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "program": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wave": {
+          "description": "Enable Drips Wave scoping checks.",
+          "type": "boolean",
+          "default": true
+        },
+        "grantfox": {
+          "description": "Enable GrantFox readiness checks.",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "stellar": {
+      "description": "Enable Stellar ecosystem checks (network, SEPs, key hygiene).",
+      "type": "boolean",
+      "default": true
+    },
+    "weights": {
+      "description": "Dimension weights. They are renormalised automatically.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clarity": { "type": "number", "default": 0.25 },
+        "scope": { "type": "number", "default": 0.25 },
+        "acceptance": { "type": "number", "default": 0.2 },
+        "context": { "type": "number", "default": 0.15 },
+        "guidance": { "type": "number", "default": 0.1 },
+        "metadata": { "type": "number", "default": 0.05 },
+        "stellar": { "type": "number", "default": 0.05 }
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ready": { "type": "number", "minimum": 0, "maximum": 100, "default": 80 },
+        "needsWork": { "type": "number", "minimum": 0, "maximum": 100, "default": 55 }
+      }
+    },
+    "minDescriptionLength": {
+      "type": "number",
+      "default": 100
+    },
+    "minBodyWords": {
+      "type": "number",
+      "default": 20
+    },
+    "title": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min": { "type": "number", "default": 8 },
+        "max": { "type": "number", "default": 80 }
+      }
+    },
+    "vagueTerms": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "placeholderTokens": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "largeScopePhrases": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "goodFirstIssue": { "type": "string", "default": "good first issue" },
+        "wave": { "type": "string", "default": "Stellar Wave" },
+        "complexity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "trivial": { "type": "string", "default": "complexity: trivial" },
+            "medium": { "type": "string", "default": "complexity: medium" },
+            "high": { "type": "string", "default": "complexity: high" }
+          }
+        }
+      }
+    },
+    "wave": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "points": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "trivial": { "type": "number", "default": 100 },
+            "medium": { "type": "number", "default": 150 },
+            "high": { "type": "number", "default": 200 }
+          }
+        },
+        "highSignals": { "type": "array", "items": { "type": "string" } },
+        "mediumSignals": { "type": "array", "items": { "type": "string" } },
+        "trivialSignals": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minReadmeLength": { "type": "number", "default": 400 },
+        "goodFirstIssueTarget": { "type": "number", "default": 3 }
+      }
+    }
+  }
+}
