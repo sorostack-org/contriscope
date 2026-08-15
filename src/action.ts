@@ -11,6 +11,8 @@ import {
   assessRepoReadiness,
   fetchAllOpenIssues,
   fetchRepoMetadata,
+  postComment,
+  renderIssueAssessment,
   renderRepoReadiness,
 } from "./index";
 import { scoreIssue } from "./scorer";
@@ -51,6 +53,7 @@ export function readActionInputs(): ActionInputs {
   const issueNumber = parseOptionalNumber(readInput("issue-number"));
   const failBelow = parseOptionalNumber(readInput("fail-below"));
 
+  const configPath = readInput("config");
   const stellarOverride = readOptionalBoolean(readInput("stellar"));
   const waveOverride = readOptionalBoolean(readInput("wave"));
 
@@ -68,18 +71,19 @@ export function readActionInputs(): ActionInputs {
 }
 
 export async function runAction(inputs: ActionInputs): Promise<number> {
-  const config = buildActionConfig(inputs);
+  const config = buildActionConfig(inputs, readInput("config"));
   const credentials = { token: inputs.token };
 
   if (inputs.mode === "report") {
     return runReportMode(inputs, config, credentials);
   }
-  return runIssueMode(inputs, config);
+  return runIssueMode(inputs, config, credentials);
 }
 
 async function runIssueMode(
   inputs: ActionInputs,
   config: ContriscopeConfig,
+  credentials: { token?: string },
 ): Promise<number> {
   const event = readEventPayload();
   const issueEvent = event.issue ?? event.pull_request;
@@ -97,6 +101,11 @@ async function runIssueMode(
   };
 
   const assessment = scoreIssue(issue, { config });
+  const markdown = renderIssueAssessment(assessment, "markdown", { includeRaw: false });
+
+  if (inputs.comment && inputs.owner && inputs.repo && inputs.token) {
+    await postComment(inputs.owner, inputs.repo, number, markdown, credentials);
+  }
 
   writeOutput("score", String(assessment.score));
   writeOutput("verdict", assessment.verdict);
@@ -127,6 +136,10 @@ async function runReportMode(
 
   writeSummary(markdown);
 
+  if (inputs.comment && inputs.issueNumber && inputs.token) {
+    await postComment(inputs.owner, inputs.repo, inputs.issueNumber, markdown, credentials);
+  }
+
   writeOutput("score", String(report.score));
   writeOutput("grade", report.grade);
   writeOutput("wave-score", String(report.programs.wave.score));
@@ -138,18 +151,8 @@ async function runReportMode(
   return 0;
 }
 
-function writeSummary(content: string): void {
-  const path = process.env.GITHUB_STEP_SUMMARY;
-  if (!path) {
-    process.stdout.write(content);
-    return;
-  }
-  appendFileSync(path, content, "utf8");
-}
-
-function buildActionConfig(inputs: ActionInputs): ContriscopeConfig {
+function buildActionConfig(inputs: ActionInputs, configPath: string): ContriscopeConfig {
   let base: ContriscopeConfig = DEFAULT_CONFIG;
-  const configPath = readInput("config");
   if (configPath) {
     try {
       base = loadConfigFile(configPath);
@@ -206,6 +209,15 @@ function writeOutput(name: string, value: string): void {
   }
   const safeValue = value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
   appendFileSync(path, `${name}=${safeValue}\n`, "utf8");
+}
+
+function writeSummary(content: string): void {
+  const path = process.env.GITHUB_STEP_SUMMARY;
+  if (!path) {
+    process.stdout.write(content);
+    return;
+  }
+  appendFileSync(path, content, "utf8");
 }
 
 export async function main(): Promise<void> {
