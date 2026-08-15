@@ -32,6 +32,8 @@ export function renderIssueAssessment(
   options: RenderOptions = {},
 ): string {
   switch (format) {
+    case "json":
+      return JSON.stringify(assessment, null, 2);
     case "text":
       return renderIssueText(assessment, options);
     case "markdown":
