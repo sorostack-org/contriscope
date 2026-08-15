@@ -151,12 +151,68 @@ export async function fetchAllOpenIssues(
   return issues;
 }
 
+export async function fetchRepoFileExistence(
+  owner: string,
+  repo: string,
+  path: string,
+  credentials: GitHubCredentials = {},
+): Promise<boolean> {
+  try {
+    await githubRequest(
+      `/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
+      credentials,
+    );
+    return true;
+  } catch (error) {
+    if (error instanceof GitHubError && error.status === 404) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+export async function fetchRepoFile(
+  owner: string,
+  repo: string,
+  path: string,
+  credentials: GitHubCredentials = {},
+): Promise<string | undefined> {
+  try {
+    const payload = await githubRequest<{ content?: string; encoding?: string }>(
+      `/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
+      credentials,
+    );
+    if (payload.content && payload.encoding === "base64") {
+      return Buffer.from(payload.content, "base64").toString("utf8");
+    }
+    return undefined;
+  } catch (error) {
+    if (error instanceof GitHubError && error.status === 404) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+export async function fetchRepoFiles(
+  owner: string,
+  repo: string,
+  path = "",
+  credentials: GitHubCredentials = {},
+): Promise<string[]> {
+  const payload = await githubRequest<{ name: string }[]>(
+    `/repos/${owner}/${repo}/contents${path ? `/${encodeURIComponent(path)}` : ""}`,
+    credentials,
+  );
+  return payload.map((entry) => entry.name);
+}
+
 export function mapGitHubIssue(issue: GitHubIssueResponse): Issue {
   return {
     number: issue.number,
     title: issue.title,
     body: issue.body ?? "",
-    labels: (issue.labels ?? []).map((label) => label.name),
+    labels: issue.labels.map((label) => label.name),
     url: issue.html_url,
     state: issue.state,
     createdAt: issue.created_at,
