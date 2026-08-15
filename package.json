@@ -1,0 +1,85 @@
+{
+  "name": "contriscope",
+  "version": "0.1.0",
+  "description": "Contributor-ready issue scoping and repository readiness tooling for funded open-source contribution on the Stellar ecosystem (Drips Wave + GrantFox).",
+  "keywords": [
+    "stellar",
+    "soroban",
+    "drips",
+    "wave",
+    "grantfox",
+    "open-source",
+    "oss",
+    "issues",
+    "github",
+    "cli",
+    "funding",
+    "typescript"
+  ],
+  "author": "Sorostack",
+  "license": "MIT",
+  "homepage": "https://github.com/Sorostack/contriscope#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sorostack/contriscope.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Sorostack/contriscope/issues"
+  },
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "contriscope": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "contriscope.schema.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rimraf dist coverage",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check": "npm run typecheck && npm run lint && npm run format:check",
+    "ci": "npm run check && npm test && npm run build",
+    "prepare": "husky",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "lint-staged": {
+    "*.{ts,mts,cts}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,mjs}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21",
+    "@commitlint/config-conventional": "^21",
+    "@types/node": "^26",
+    "@typescript-eslint/eslint-plugin": "^8",
+    "@typescript-eslint/parser": "^8",
+    "@vitest/coverage-v8": "^4",
+    "eslint": "^10",
+    "eslint-config-prettier": "^10",
+    "husky": "^9",
+    "lint-staged": "^17",
+    "prettier": "^3",
+    "rimraf": "^6",
+    "typescript": "^5",
+    "vitest": "^4"
+  }
+}
