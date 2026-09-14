@@ -92,12 +92,7 @@ async function runReportMode(inputs, config, credentials) {
 function buildActionConfig(inputs, configPath) {
     let base = config_1.DEFAULT_CONFIG;
     if (configPath) {
-        try {
-            base = (0, config_1.loadConfigFile)(configPath);
-        }
-        catch {
-            // fall back to defaults if the config file cannot be read
-        }
+        base = (0, config_1.loadConfigFile)(configPath);
     }
     const overrides = {};
     if (!inputs.stellar) {
@@ -133,12 +128,7 @@ function readEventPayload() {
     if (!path) {
         return {};
     }
-    try {
-        return JSON.parse((0, node_fs_1.readFileSync)(path, "utf8"));
-    }
-    catch {
-        return {};
-    }
+    return JSON.parse((0, node_fs_1.readFileSync)(path, "utf8"));
 }
 function writeOutput(name, value) {
     const path = process.env.GITHUB_OUTPUT;

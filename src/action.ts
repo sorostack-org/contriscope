@@ -157,11 +157,7 @@ async function runReportMode(
 function buildActionConfig(inputs: ActionInputs, configPath: string): ContriscopeConfig {
   let base: ContriscopeConfig = DEFAULT_CONFIG;
   if (configPath) {
-    try {
-      base = loadConfigFile(configPath);
-    } catch {
-      // fall back to defaults if the config file cannot be read
-    }
+    base = loadConfigFile(configPath);
   }
   const overrides: DeepPartial<ContriscopeConfig> = {};
   if (!inputs.stellar) {
@@ -201,11 +197,7 @@ function readEventPayload(): GitHubEvent {
   if (!path) {
     return {};
   }
-  try {
-    return JSON.parse(readFileSync(path, "utf8")) as GitHubEvent;
-  } catch {
-    return {};
-  }
+  return JSON.parse(readFileSync(path, "utf8")) as GitHubEvent;
 }
 
 function writeOutput(name: string, value: string): void {
