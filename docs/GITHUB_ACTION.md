@@ -48,7 +48,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: Sorostack/contriscope@v1
+      - uses: sorostack-org/contriscope@v1
         with:
           mode: issue
           comment: "true"
@@ -72,7 +72,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: Sorostack/contriscope@v1
+      - uses: sorostack-org/contriscope@v1
         with:
           mode: issue
           fail-below: 80
@@ -94,7 +94,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: Sorostack/contriscope@v1
+      - uses: sorostack-org/contriscope@v1
         with:
           mode: report
 ```

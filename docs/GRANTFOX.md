@@ -61,7 +61,7 @@ contriscope template all --write --dir .github/ISSUE_TEMPLATE
 ## Running the GrantFox report
 
 ```sh
-contriscope check-repo --slug Sorostack/contriscope --format json
+contriscope check-repo --slug sorostack-org/contriscope --format json
 ```
 
 The `programs.grantfox` section lists each checklist item with `met: true/false`.

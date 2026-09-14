@@ -11,7 +11,7 @@ const fixtures = join(__dirname, "fixtures");
 function goodRepo(): RepoMetadata {
   return {
     name: "stellar-widget",
-    owner: "Sorostack",
+    owner: "sorostack-org",
     description: "A Stellar widget library",
     hasREADME: true,
     readmeLength: 2000,

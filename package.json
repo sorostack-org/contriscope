@@ -16,15 +16,15 @@
     "funding",
     "typescript"
   ],
-  "author": "Sorostack",
+  "author": "sorostack-org",
   "license": "MIT",
-  "homepage": "https://github.com/Sorostack/contriscope#readme",
+  "homepage": "https://github.com/sorostack-org/contriscope#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Sorostack/contriscope.git"
+    "url": "https://github.com/sorostack-org/contriscope.git"
   },
   "bugs": {
-    "url": "https://github.com/Sorostack/contriscope/issues"
+    "url": "https://github.com/sorostack-org/contriscope/issues"
   },
   "type": "commonjs",
   "main": "./dist/index.js",

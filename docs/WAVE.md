@@ -82,7 +82,7 @@ See [SCORING.md](SCORING.md) for the exact checks.
 ## Running the Wave report
 
 ```sh
-contriscope check-repo --slug Sorostack/contriscope
+contriscope check-repo --slug sorostack-org/contriscope
 ```
 
 The `programs.wave` section of the JSON output lists each checklist item with `met: true/false` and a

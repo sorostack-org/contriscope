@@ -6,7 +6,7 @@ Guidance for human and AI contributors working on ContriScope.
 
 ContriScope is a zero-runtime-dependency TypeScript CLI + library + GitHub Action that scores GitHub
 issues and repositories for funded-contribution readiness (Drips Wave + GrantFox) on the Stellar
-ecosystem. Sibling project in the same org: `Sorostack/stellar-payments-kit`.
+ecosystem. Sibling project in the same org: `sorostack-org/stellar-payments-kit`.
 
 ## Key conventions
 

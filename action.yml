@@ -2,7 +2,7 @@ name: "ContriScope"
 description: >-
   Score GitHub issues and repositories for funded-contribution readiness
   (Drips Wave + GrantFox) on the Stellar ecosystem.
-author: "Sorostack"
+author: "sorostack-org"
 branding:
   icon: "check-circle"
   color: "green"

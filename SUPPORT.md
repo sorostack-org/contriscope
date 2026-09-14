@@ -3,10 +3,10 @@
 ## Getting help
 
 - **Documentation** — start with the [README](README.md) and the guides under `docs/`.
-- **Issues and bugs** — search the [issue tracker](https://github.com/Sorostack/contriscope/issues)
+- **Issues and bugs** — search the [issue tracker](https://github.com/sorostack-org/contriscope/issues)
   before opening a new one.
 - **Discussions** — use GitHub
-  [discussions](https://github.com/Sorostack/contriscope/discussions) for questions and ideas.
+  [discussions](https://github.com/sorostack-org/contriscope/discussions) for questions and ideas.
 
 ## Before you ask
 
@@ -32,7 +32,7 @@ Redact any secrets (Stellar secret keys, tokens) before pasting input.
 
 - GitHub issues and discussions (see above).
 - The maintainers can be reached via the
-  [Funding](https://github.com/Sorostack/contriscope) links in the repository sidebar.
+  [Funding](https://github.com/sorostack-org/contriscope) links in the repository sidebar.
 
 ## Contributing
 

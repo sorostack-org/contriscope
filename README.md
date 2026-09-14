@@ -69,7 +69,7 @@ contriscope check path/to/issue.md --format json
 Score a repository's issue list from GitHub:
 
 ```sh
-contriscope check-repo --slug Sorostack/contriscope --token ghp_xxx
+contriscope check-repo --slug sorostack-org/contriscope
 ```
 
 Analyse a local directory of issue files:
@@ -156,7 +156,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: Sorostack/contriscope@v1
+      - uses: sorostack-org/contriscope@v1
         with:
           mode: issue
           comment: "true"

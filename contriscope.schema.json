@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/Sorostack/contriscope/main/contriscope.schema.json",
+  "$id": "https://raw.githubusercontent.com/sorostack-org/contriscope/main/contriscope.schema.json",
   "title": "ContriScope configuration",
   "description": "Configuration schema for ContriScope. Create a .contriscope.json file with a $schema reference to this file for editor autocompletion.",
   "type": "object",

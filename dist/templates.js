@@ -292,7 +292,7 @@ function renderTemplatesConfig() {
         "blank_issues_enabled: true",
         "contact_links:",
         "  - name: GitHub Discussions",
-        "    url: https://github.com/Sorostack/contriscope/discussions",
+        "    url: https://github.com/sorostack-org/contriscope/discussions",
         "    about: Ask questions and discuss ideas",
         "",
     ].join("\n");

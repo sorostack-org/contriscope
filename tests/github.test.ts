@@ -39,7 +39,7 @@ describe("github adapter", () => {
         number: 7,
         title: "Add SEP-10 auth",
         body: "Implement the helper.",
-        html_url: "https://github.com/Sorostack/contriscope/issues/7",
+        html_url: "https://github.com/sorostack-org/contriscope/issues/7",
         state: "open",
         created_at: "2026-01-01T00:00:00Z",
         updated_at: "2026-01-02T00:00:00Z",
@@ -47,7 +47,7 @@ describe("github adapter", () => {
         labels: [{ name: "enhancement" }],
       },
     ]);
-    const issues = await fetchIssues("Sorostack", "contriscope", { token: "test" });
+    const issues = await fetchIssues("sorostack-org", "contriscope", { token: "test" });
     expect(issues).toHaveLength(1);
     expect(issues[0].title).toBe("Add SEP-10 auth");
     expect(issues[0].labels).toEqual(["enhancement"]);
@@ -69,14 +69,14 @@ describe("github adapter", () => {
       number: 3,
       title: "Fix docs",
       body: "Update the README.",
-      html_url: "https://github.com/Sorostack/contriscope/issues/3",
+      html_url: "https://github.com/sorostack-org/contriscope/issues/3",
       state: "open",
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
       comments: 0,
       labels: [],
     });
-    const issue = await fetchIssue("Sorostack", "contriscope", 3, { token: "x" });
+    const issue = await fetchIssue("sorostack-org", "contriscope", 3, { token: "x" });
     expect(issue.number).toBe(3);
   });
 
@@ -151,12 +151,12 @@ describe("github adapter", () => {
   });
 
   it("parses repository slugs", () => {
-    expect(parseRepositorySlug("Sorostack/contriscope")).toEqual({
-      owner: "Sorostack",
+    expect(parseRepositorySlug("sorostack-org/contriscope")).toEqual({
+      owner: "sorostack-org",
       repo: "contriscope",
     });
-    expect(parseRepositorySlug("https://github.com/Sorostack/contriscope")).toEqual({
-      owner: "Sorostack",
+    expect(parseRepositorySlug("https://github.com/sorostack-org/contriscope")).toEqual({
+      owner: "sorostack-org",
       repo: "contriscope",
     });
     expect(() => parseRepositorySlug("invalid")).toThrow(GitHubError);
