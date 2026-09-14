@@ -98,7 +98,7 @@ Repository scoring uses five sections with these default weights:
 | Contributor onboarding |   0.20 |
 | Ecosystem signals      |   0.15 |
 
-The total maps to a grade: A (>= 90), B (>= 75), C (>= 60), D (>= 50), F (below 50). The same
+The total maps to a grade: A (>= 90), B (>= 75), C (>= 60), D (>= 40), F (below 40). The same
 signals feed the Drips Wave and GrantFox checklists described in [WAVE.md](WAVE.md) and
 [GRANTFOX.md](GRANTFOX.md).
 
