@@ -150,6 +150,80 @@ describe("github adapter", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("paginates until fewer than 100 issues are returned", async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => ({
+      number: i + 1,
+      title: `Issue ${i + 1}`,
+      body: "body",
+      state: "open",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      comments: 0,
+      labels: [],
+    }));
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      json: async () => page1,
+    } as unknown as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      json: async () => [],
+    } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const issues = await fetchAllOpenIssues("o", "r");
+    expect(issues).toHaveLength(100);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("fetches the next page when a full page is all pull requests", async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => ({
+      number: i + 1,
+      title: `PR ${i + 1}`,
+      body: "body",
+      state: "open",
+      pull_request: {},
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      comments: 0,
+      labels: [],
+    }));
+    const issue = {
+      number: 101,
+      title: "First real issue",
+      body: "body",
+      state: "open",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      comments: 0,
+      labels: [],
+    };
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      json: async () => page1,
+    } as unknown as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      json: async () => [issue],
+    } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const issues = await fetchAllOpenIssues("o", "r");
+    expect(issues).toHaveLength(1);
+    expect(issues[0].number).toBe(101);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("parses repository slugs", () => {
     expect(parseRepositorySlug("sorostack-org/contriscope")).toEqual({
       owner: "sorostack-org",

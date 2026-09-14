@@ -62,13 +62,10 @@ async function fetchAllOpenIssues(owner, repo, credentials = {}) {
     const issues = [];
     let page = 1;
     for (;;) {
-        const batch = await fetchIssues(owner, repo, credentials, {
-            state: "open",
-            perPage: 100,
-            page,
-        });
-        issues.push(...batch);
-        if (batch.length < 100) {
+        const raw = await githubRequest(`/repos/${owner}/${repo}/issues?state=open&per_page=100&page=${page}`, credentials);
+        const filtered = raw.filter((issue) => issue.pull_request === undefined).map(mapGitHubIssue);
+        issues.push(...filtered);
+        if (raw.length < 100) {
             break;
         }
         page += 1;
@@ -87,10 +84,6 @@ async function fetchRepoMetadata(owner, repo, credentials = {}) {
         forks: payload.forks_count,
         homepage: payload.homepage ?? undefined,
         primaryLanguage: payload.language ?? undefined,
-        hasREADME: true,
-        hasContributing: true,
-        hasDocs: true,
-        hasCi: true,
     };
 }
 async function postComment(owner, repo, issueNumber, body, credentials = {}) {
