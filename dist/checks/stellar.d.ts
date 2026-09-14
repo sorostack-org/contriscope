@@ -15,7 +15,4 @@ export declare function hasStellarContent(input: {
     body: string;
 }): boolean;
 export declare function checkStellar(input: StellarInput): StellarResult;
-export declare function countStellarFiles(input: {
-    body: string;
-}): number;
 //# sourceMappingURL=stellar.d.ts.map

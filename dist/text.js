@@ -13,8 +13,6 @@ exports.hasSection = hasSection;
 exports.containsCheckboxes = containsCheckboxes;
 exports.countCheckboxes = countCheckboxes;
 exports.extractFileReferences = extractFileReferences;
-exports.titleLooksLikeQuestion = titleLooksLikeQuestion;
-exports.trimToSentence = trimToSentence;
 const WORD_PATTERN_CACHE = new Map();
 function escapeRegExp(value) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -89,14 +87,4 @@ function extractFileReferences(value) {
         return [];
     }
     return [...new Set(matches.map((m) => m.replace(/^`|`$/g, "")))];
-}
-function titleLooksLikeQuestion(title) {
-    return /\?\s*$/.test(title.trim());
-}
-function trimToSentence(value, maxLength) {
-    const trimmed = value.trim();
-    if (trimmed.length <= maxLength) {
-        return trimmed;
-    }
-    return `${trimmed.slice(0, maxLength - 3).trimEnd()}...`;
 }

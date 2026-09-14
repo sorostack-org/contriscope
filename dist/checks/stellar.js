@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.hasStellarContent = hasStellarContent;
 exports.checkStellar = checkStellar;
-exports.countStellarFiles = countStellarFiles;
 const text_1 = require("../text");
 const helpers_1 = require("./helpers");
 const STELLAR_MARKERS = [
@@ -98,7 +97,4 @@ function checkStellar(input) {
         add((0, helpers_1.makeFinding)("stellar.asset-context", "stellar", "info", "Asset references present", "The issue mentions assets; contributors need the asset code and issuer to build correctly.", "State the asset code (e.g. `USDC`) and its issuer, or confirm native XLM."));
     }
     return { active: true, score: (0, helpers_1.clampScore)(100 - penalty), findings };
-}
-function countStellarFiles(input) {
-    return (0, text_1.extractFileReferences)(input.body).length;
 }

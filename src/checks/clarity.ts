@@ -193,7 +193,3 @@ export function checkClarity(input: ClarityInput): { score: number; findings: Fi
 
   return { score: clampScore(100 - penalty), findings };
 }
-
-export function countVagueTerms(body: string, config: ContriscopeConfig): number {
-  return countOccurrences(body, config.vagueTerms);
-}

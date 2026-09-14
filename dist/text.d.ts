@@ -11,6 +11,4 @@ export declare function hasSection(value: string, headings: readonly string[]): 
 export declare function containsCheckboxes(value: string): boolean;
 export declare function countCheckboxes(value: string): number;
 export declare function extractFileReferences(value: string): string[];
-export declare function titleLooksLikeQuestion(title: string): boolean;
-export declare function trimToSentence(value: string, maxLength: number): string;
 //# sourceMappingURL=text.d.ts.map

@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkClarity = checkClarity;
-exports.countVagueTerms = countVagueTerms;
 const text_1 = require("../text");
 const helpers_1 = require("./helpers");
 const ACTIONABLE_VERBS = [
@@ -81,7 +80,4 @@ function checkClarity(input) {
         add((0, helpers_1.makeFinding)("clarity.actionable-verb", "clarity", "warning", "No actionable verb found", "The issue does not describe a concrete action (implement, add, fix, refactor...).", "Start the title with an imperative verb so contributors know what to do."));
     }
     return { score: (0, helpers_1.clampScore)(100 - penalty), findings };
-}
-function countVagueTerms(body, config) {
-    return (0, text_1.countOccurrences)(body, config.vagueTerms);
 }

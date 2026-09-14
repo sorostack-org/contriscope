@@ -188,7 +188,3 @@ export function checkStellar(input: StellarInput): StellarResult {
 
   return { active: true, score: clampScore(100 - penalty), findings };
 }
-
-export function countStellarFiles(input: { body: string }): number {
-  return extractFileReferences(input.body).length;
-}

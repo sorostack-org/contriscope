@@ -10,5 +10,4 @@ export declare function checkClarity(input: ClarityInput): {
     score: number;
     findings: Finding[];
 };
-export declare function countVagueTerms(body: string, config: ContriscopeConfig): number;
 //# sourceMappingURL=clarity.d.ts.map

@@ -91,15 +91,3 @@ export function extractFileReferences(value: string): string[] {
   }
   return [...new Set(matches.map((m) => m.replace(/^`|`$/g, "")))];
 }
-
-export function titleLooksLikeQuestion(title: string): boolean {
-  return /\?\s*$/.test(title.trim());
-}
-
-export function trimToSentence(value: string, maxLength: number): string {
-  const trimmed = value.trim();
-  if (trimmed.length <= maxLength) {
-    return trimmed;
-  }
-  return `${trimmed.slice(0, maxLength - 3).trimEnd()}...`;
-}
