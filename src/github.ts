@@ -52,7 +52,10 @@ export async function githubRequest<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE}${path}`, { headers });
+    response = await fetch(`${API_BASE}${path}`, {
+      headers,
+      signal: AbortSignal.timeout(15_000),
+    });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new GitHubError(`Network error while reaching the GitHub API: ${detail}`);
@@ -169,6 +172,7 @@ export async function postComment(
       method: "POST",
       headers,
       body: JSON.stringify({ body }),
+      signal: AbortSignal.timeout(15_000),
     },
   );
   if (!response.ok) {

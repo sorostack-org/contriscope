@@ -24,7 +24,10 @@ async function githubRequest(path, credentials = {}) {
     }
     let response;
     try {
-        response = await fetch(`${API_BASE}${path}`, { headers });
+        response = await fetch(`${API_BASE}${path}`, {
+            headers,
+            signal: AbortSignal.timeout(15_000),
+        });
     }
     catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
@@ -99,6 +102,7 @@ async function postComment(owner, repo, issueNumber, body, credentials = {}) {
         method: "POST",
         headers,
         body: JSON.stringify({ body }),
+        signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) {
         const rateLimited = response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0";

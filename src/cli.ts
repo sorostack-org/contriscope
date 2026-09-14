@@ -410,25 +410,26 @@ async function enrichRepoMetadata(
   metadata: RepoMetadata,
   credentials: { token?: string },
 ): Promise<RepoMetadata> {
-  const rootFiles = await fetchRepoFiles(owner, repo, "", credentials).catch(() => [] as string[]);
+  const tryRepoFiles = async (path: string): Promise<string[]> => {
+    try {
+      return await fetchRepoFiles(owner, repo, path, credentials);
+    } catch (error) {
+      if (error instanceof GitHubError && error.status === 404) {
+        return [];
+      }
+      throw error;
+    }
+  };
+
+  const rootFiles = await tryRepoFiles("");
   const has = (name: string) => rootFiles.includes(name);
   const readme = has("README.md")
     ? await fetchRepoFile(owner, repo, "README.md", credentials)
     : undefined;
   const docsDir = rootFiles.some((name) => name === "docs" || name === "documentation");
-  const workflows = has(".github")
-    ? await fetchRepoFiles(owner, repo, ".github/workflows", credentials).catch(
-        () => [] as string[],
-      )
-    : [];
-  const issueTemplates = has(".github")
-    ? await fetchRepoFiles(owner, repo, ".github/ISSUE_TEMPLATE", credentials).catch(
-        () => [] as string[],
-      )
-    : [];
-  const dotGithubFiles = has(".github")
-    ? await fetchRepoFiles(owner, repo, ".github", credentials).catch(() => [] as string[])
-    : [];
+  const workflows = has(".github") ? await tryRepoFiles(".github/workflows") : [];
+  const issueTemplates = has(".github") ? await tryRepoFiles(".github/ISSUE_TEMPLATE") : [];
+  const dotGithubFiles = has(".github") ? await tryRepoFiles(".github") : [];
 
   return {
     ...metadata,

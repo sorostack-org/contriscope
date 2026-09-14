@@ -318,21 +318,26 @@ function stringOption(options, key) {
     return typeof value === "string" ? value : undefined;
 }
 async function enrichRepoMetadata(owner, repo, metadata, credentials) {
-    const rootFiles = await (0, index_1.fetchRepoFiles)(owner, repo, "", credentials).catch(() => []);
+    const tryRepoFiles = async (path) => {
+        try {
+            return await (0, index_1.fetchRepoFiles)(owner, repo, path, credentials);
+        }
+        catch (error) {
+            if (error instanceof errors_1.GitHubError && error.status === 404) {
+                return [];
+            }
+            throw error;
+        }
+    };
+    const rootFiles = await tryRepoFiles("");
     const has = (name) => rootFiles.includes(name);
     const readme = has("README.md")
         ? await (0, index_1.fetchRepoFile)(owner, repo, "README.md", credentials)
         : undefined;
     const docsDir = rootFiles.some((name) => name === "docs" || name === "documentation");
-    const workflows = has(".github")
-        ? await (0, index_1.fetchRepoFiles)(owner, repo, ".github/workflows", credentials).catch(() => [])
-        : [];
-    const issueTemplates = has(".github")
-        ? await (0, index_1.fetchRepoFiles)(owner, repo, ".github/ISSUE_TEMPLATE", credentials).catch(() => [])
-        : [];
-    const dotGithubFiles = has(".github")
-        ? await (0, index_1.fetchRepoFiles)(owner, repo, ".github", credentials).catch(() => [])
-        : [];
+    const workflows = has(".github") ? await tryRepoFiles(".github/workflows") : [];
+    const issueTemplates = has(".github") ? await tryRepoFiles(".github/ISSUE_TEMPLATE") : [];
+    const dotGithubFiles = has(".github") ? await tryRepoFiles(".github") : [];
     return {
         ...metadata,
         hasREADME: has("README.md"),
