@@ -357,7 +357,7 @@ function buildProgramReadiness(
   const items =
     name === "drips-wave"
       ? waveItems(repo, assessments, config)
-      : grantfoxItems(repo, assessments, issues);
+      : grantfoxItems(repo, assessments, issues, config);
   const metCount = items.filter((item) => item.met).length;
   const score = items.length > 0 ? Math.round((metCount / items.length) * 100) : 0;
   const verdict: Verdict =
@@ -420,10 +420,19 @@ function grantfoxItems(
   repo: RepoMetadata,
   assessments: IssueAssessment[],
   issues: Issue[],
+  config: ContriscopeConfig,
 ): ProgramChecklistItem[] {
   const avgScore = average(assessments.map((a) => a.score));
   const avgScope = average(assessments.map((a) => dimensionScore(a, "scope")));
   return [
+    {
+      id: "enabled",
+      label: "GrantFox program checks are enabled",
+      met: Boolean(config.program.grantfox),
+      detail: config.program.grantfox
+        ? "GrantFox program checks are enabled."
+        : "GrantFox checks are disabled via configuration.",
+    },
     {
       id: "readme",
       label: "README present",

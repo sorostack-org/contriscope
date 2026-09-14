@@ -8,6 +8,7 @@ interface ActionInputs {
     failBelow?: number;
     stellar: boolean;
     wave: boolean;
+    grantfox: boolean;
 }
 export declare function readActionInputs(): ActionInputs;
 export declare function runAction(inputs: ActionInputs): Promise<number>;

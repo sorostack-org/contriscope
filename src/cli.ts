@@ -28,6 +28,7 @@ import {
   writeIssueTemplates,
 } from "./templates";
 import type { Issue, OutputFormat, RepoMetadata } from "./types";
+import { VERSION } from "./version";
 
 const HELP = `ContriScope — contributor-ready issue scoping for funded open source on Stellar.
 
@@ -44,13 +45,15 @@ Commands:
   check <file|->        Score one issue. <file> may be Markdown or JSON
                         (an object with { title, body, labels }). Use '-' for stdin.
                         Options: --config <path>, --format <text|json|markdown>,
-                                 --no-stellar, --no-wave, --fail-below <n>
+                                 --no-stellar, --no-wave, --no-grantfox,
+                                 --fail-below <n>
 
   check-repo            Analyse a repository. Provide either --slug owner/repo
                         (uses the GitHub API) or --path <dir> (local Markdown issues).
                         Options: --slug <owner/repo>, --owner <o> --repo <r>,
                                  --path <dir>, --token <token>, --format <fmt>,
-                                 --fail-below <n>, --config <path>
+                                 --fail-below <n>, --config <path>,
+                                 --no-grantfox, --no-wave, --no-stellar
 
   template [type]       Print an issue template. Types: ${TEMPLATE_TYPES.join(", ")}.
                         Add --write to save templates to .github/ISSUE_TEMPLATE
@@ -127,7 +130,7 @@ export async function run(argv: string[]): Promise<number> {
     return 0;
   }
   if (parsed.options.version || parsed.command === "version") {
-    process.stdout.write(`${readVersion()}\n`);
+    process.stdout.write(`${VERSION}\n`);
     return 0;
   }
 
@@ -332,7 +335,7 @@ function runConfig(parsed: ParsedCli): number {
   return 0;
 }
 
-function resolveConfig(options: CliOptions): ContriscopeConfig {
+export function resolveConfig(options: CliOptions): ContriscopeConfig {
   const configPath = stringOption(options, "config");
   const base = configPath ? loadConfigFile(configPath) : DEFAULT_CONFIG;
   const overrides: DeepPartial<ContriscopeConfig> = {};
@@ -342,6 +345,9 @@ function resolveConfig(options: CliOptions): ContriscopeConfig {
   }
   if (options["no-wave"]) {
     overrides.program = { ...(overrides.program ?? {}), wave: false };
+  }
+  if (options["no-grantfox"]) {
+    overrides.program = { ...(overrides.program ?? {}), grantfox: false };
   }
   return mergeConfig(overrides, base);
 }
@@ -367,16 +373,6 @@ function computeExitCode(score: number, blocked: boolean, options: CliOptions): 
     return score < threshold ? 1 : 0;
   }
   return blocked ? 1 : 0;
-}
-
-function readVersion(): string {
-  try {
-    const packageJson = readFileSync(join(__dirname, "..", "package.json"), "utf8");
-    const parsed = JSON.parse(packageJson) as { version?: string };
-    return parsed.version ?? "0.0.0";
-  } catch {
-    return "0.0.0";
-  }
 }
 
 function readFile(target: string): string {

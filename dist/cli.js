@@ -3,6 +3,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseArgs = parseArgs;
 exports.run = run;
+exports.resolveConfig = resolveConfig;
 exports.main = main;
 const node_fs_1 = require("node:fs");
 const node_path_1 = require("node:path");
@@ -13,6 +14,7 @@ const parse_1 = require("./parse");
 const report_1 = require("./report");
 const scorer_1 = require("./scorer");
 const templates_1 = require("./templates");
+const version_1 = require("./version");
 const HELP = `ContriScope — contributor-ready issue scoping for funded open source on Stellar.
 
 Usage:
@@ -28,13 +30,15 @@ Commands:
   check <file|->        Score one issue. <file> may be Markdown or JSON
                         (an object with { title, body, labels }). Use '-' for stdin.
                         Options: --config <path>, --format <text|json|markdown>,
-                                 --no-stellar, --no-wave, --fail-below <n>
+                                 --no-stellar, --no-wave, --no-grantfox,
+                                 --fail-below <n>
 
   check-repo            Analyse a repository. Provide either --slug owner/repo
                         (uses the GitHub API) or --path <dir> (local Markdown issues).
                         Options: --slug <owner/repo>, --owner <o> --repo <r>,
                                  --path <dir>, --token <token>, --format <fmt>,
-                                 --fail-below <n>, --config <path>
+                                 --fail-below <n>, --config <path>,
+                                 --no-grantfox, --no-wave, --no-stellar
 
   template [type]       Print an issue template. Types: ${templates_1.TEMPLATE_TYPES.join(", ")}.
                         Add --write to save templates to .github/ISSUE_TEMPLATE
@@ -97,7 +101,7 @@ async function run(argv) {
         return 0;
     }
     if (parsed.options.version || parsed.command === "version") {
-        process.stdout.write(`${readVersion()}\n`);
+        process.stdout.write(`${version_1.VERSION}\n`);
         return 0;
     }
     try {
@@ -262,6 +266,9 @@ function resolveConfig(options) {
     if (options["no-wave"]) {
         overrides.program = { ...(overrides.program ?? {}), wave: false };
     }
+    if (options["no-grantfox"]) {
+        overrides.program = { ...(overrides.program ?? {}), grantfox: false };
+    }
     return (0, config_1.mergeConfig)(overrides, base);
 }
 function optionFormat(options) {
@@ -284,16 +291,6 @@ function computeExitCode(score, blocked, options) {
         return score < threshold ? 1 : 0;
     }
     return blocked ? 1 : 0;
-}
-function readVersion() {
-    try {
-        const packageJson = (0, node_fs_1.readFileSync)((0, node_path_1.join)(__dirname, "..", "package.json"), "utf8");
-        const parsed = JSON.parse(packageJson);
-        return parsed.version ?? "0.0.0";
-    }
-    catch {
-        return "0.0.0";
-    }
 }
 function readFile(target) {
     if (!(0, node_fs_1.existsSync)(target)) {

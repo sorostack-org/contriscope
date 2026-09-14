@@ -64,8 +64,12 @@ export function extractIssueReferences(value: string): string[] {
 export function hasSection(value: string, headings: readonly string[]): boolean {
   const lower = value.toLowerCase();
   return headings.some((heading) => {
-    const pattern = new RegExp(`^\\s{0,3}#{1,6}\\s*${escapeRegExp(heading.toLowerCase())}`, "m");
-    return pattern.test(lower) || lower.includes(heading.toLowerCase());
+    const escaped = escapeRegExp(heading.toLowerCase());
+    const pattern = new RegExp(
+      `^\\s{0,3}(?:#{1,6}\\s*|\\*{1,2}\\s*|[*+-]\\s+|\\d+[.)]\\s+)?${escaped}[^\\p{L}\\p{N}_]*\\s*:?\\s*$`,
+      "m",
+    );
+    return pattern.test(lower);
   });
 }
 

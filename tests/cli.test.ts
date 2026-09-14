@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "nod
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import { parseArgs, run } from "../src/cli";
+import { parseArgs, resolveConfig, run } from "../src/cli";
 
 const fixtures = join(__dirname, "fixtures");
 const tempDirs: string[] = [];
@@ -54,6 +54,15 @@ describe("parseArgs", () => {
   it("treats flags without values as booleans", () => {
     const parsed = parseArgs(["check", "x.md", "--no-stellar"]);
     expect(parsed.options["no-stellar"]).toBe(true);
+  });
+
+  it("honours the no-grantfox flag", () => {
+    expect(resolveConfig({ "no-grantfox": true }).program.grantfox).toBe(false);
+    expect(resolveConfig({}).program.grantfox).toBe(true);
+  });
+
+  it("honours the no-wave flag", () => {
+    expect(resolveConfig({ "no-wave": true }).program.wave).toBe(false);
   });
 });
 

@@ -28,6 +28,7 @@ interface ActionInputs {
   failBelow?: number;
   stellar: boolean;
   wave: boolean;
+  grantfox: boolean;
 }
 
 interface GitHubEvent {
@@ -56,6 +57,7 @@ export function readActionInputs(): ActionInputs {
   const configPath = readInput("config");
   const stellarOverride = readOptionalBoolean(readInput("stellar"));
   const waveOverride = readOptionalBoolean(readInput("wave"));
+  const grantfoxOverride = readOptionalBoolean(readInput("grantfox"));
 
   return {
     mode,
@@ -67,6 +69,7 @@ export function readActionInputs(): ActionInputs {
     failBelow,
     stellar: stellarOverride !== false,
     wave: waveOverride !== false,
+    grantfox: grantfoxOverride !== false,
   };
 }
 
@@ -166,6 +169,9 @@ function buildActionConfig(inputs: ActionInputs, configPath: string): Contriscop
   }
   if (!inputs.wave) {
     overrides.program = { ...(overrides.program ?? {}), wave: false };
+  }
+  if (!inputs.grantfox) {
+    overrides.program = { ...(overrides.program ?? {}), grantfox: false };
   }
   return mergeConfig(overrides, base);
 }

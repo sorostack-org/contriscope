@@ -38,6 +38,17 @@ describe("text utilities", () => {
     expect(hasSection("Just some body text", ["acceptance criteria"])).toBe(false);
   });
 
+  it("detects section headings without false positives", () => {
+    expect(hasSection("**Acceptance Criteria:**\n- [ ] done", ["acceptance criteria"])).toBe(true);
+    expect(hasSection("1. Acceptance criteria", ["acceptance criteria"])).toBe(true);
+    expect(hasSection("- Acceptance criteria", ["acceptance criteria"])).toBe(true);
+    expect(hasSection("I have no acceptance criteria yet", ["acceptance criteria"])).toBe(false);
+    expect(
+      hasSection("Also define done criteria\nNo definition of done here", ["definition of done"]),
+    ).toBe(false);
+    expect(hasSection("## Done when", ["done when"])).toBe(true);
+  });
+
   it("detects checkboxes", () => {
     expect(containsCheckboxes("- [ ] a\n- [x] b")).toBe(true);
     expect(containsCheckboxes("plain text")).toBe(false);

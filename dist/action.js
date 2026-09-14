@@ -17,6 +17,7 @@ function readActionInputs() {
     const configPath = readInput("config");
     const stellarOverride = readOptionalBoolean(readInput("stellar"));
     const waveOverride = readOptionalBoolean(readInput("wave"));
+    const grantfoxOverride = readOptionalBoolean(readInput("grantfox"));
     return {
         mode,
         comment: readInput("comment") === "true",
@@ -27,6 +28,7 @@ function readActionInputs() {
         failBelow,
         stellar: stellarOverride !== false,
         wave: waveOverride !== false,
+        grantfox: grantfoxOverride !== false,
     };
 }
 async function runAction(inputs) {
@@ -103,6 +105,9 @@ function buildActionConfig(inputs, configPath) {
     }
     if (!inputs.wave) {
         overrides.program = { ...(overrides.program ?? {}), wave: false };
+    }
+    if (!inputs.grantfox) {
+        overrides.program = { ...(overrides.program ?? {}), grantfox: false };
     }
     return (0, config_1.mergeConfig)(overrides, base);
 }
