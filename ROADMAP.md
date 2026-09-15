@@ -14,13 +14,14 @@ source of truth.
 - Library API (`scoreIssue`, `assessRepoReadiness`, templates).
 - GitHub Action with issue scoring, commenting, and `fail-below` gating.
 - Six issue templates and a JSON schema for configuration.
+- `check-repo --slug` end-to-end against real repositories, with a GitHub adapter that follows
+  `Link`-header pagination, bounds page traversal, and retries secondary rate limits (`429` / `403`
+  with `Retry-After`) and transient `5xx` responses.
 
 ## Near term
 
 - Publish the action at a stable `v1` tag.
 - Publish `contriscope` to npm and set up the release workflow.
-- `contriscope check-repo --slug` end-to-end against a real repository and improve the GitHub
-  adapter's robustness (pagination, secondary rate limits).
 - Historical scoring: track issue scores over time to show improvement.
 
 ## Later
