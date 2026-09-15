@@ -13,10 +13,12 @@ export declare class InputError extends ContriscopeError {
 export interface GitHubErrorOptions {
     status?: number;
     rateLimited?: boolean;
+    retryAfterSeconds?: number;
 }
 export declare class GitHubError extends ContriscopeError {
     status?: number;
     rateLimited: boolean;
+    retryAfterSeconds?: number;
     constructor(message: string, options?: GitHubErrorOptions);
 }
 //# sourceMappingURL=errors.d.ts.map

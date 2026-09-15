@@ -11,7 +11,7 @@ export { assessRepoReadiness, summarizeReadiness } from "./readiness";
 export type { AssessRepoReadinessOptions } from "./readiness";
 export { renderIssueAssessment, renderRepoReadiness, renderWaveSuggestion } from "./report";
 export type { RenderOptions } from "./report";
-export { githubRequest, fetchIssue, fetchIssues, fetchAllOpenIssues, fetchRepoMetadata, fetchRepoFiles, fetchRepoFile, fetchRepoFileExistence, postComment, parseRepositorySlug, mapGitHubIssue, mapGitHubRepo, } from "./github";
+export { githubRequest, fetchIssue, fetchIssues, fetchAllOpenIssues, fetchRepoMetadata, fetchRepoFiles, fetchRepoFile, fetchRepoFileExistence, postComment, parseRepositorySlug, parseLinkHeader, mapGitHubIssue, mapGitHubRepo, } from "./github";
 export type { GitHubCredentials, FetchIssuesOptions } from "./github";
 export { renderTemplate, renderTemplatesConfig, writeIssueTemplates, templateTypeFromName, TEMPLATE_TYPES, } from "./templates";
 export type { TemplateType, RenderTemplateOptions, WriteTemplatesOptions } from "./templates";

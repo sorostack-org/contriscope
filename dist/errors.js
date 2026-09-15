@@ -32,11 +32,13 @@ exports.InputError = InputError;
 class GitHubError extends ContriscopeError {
     status;
     rateLimited;
+    retryAfterSeconds;
     constructor(message, options = {}) {
         super(message);
         this.name = "GitHubError";
         this.status = options.status;
         this.rateLimited = options.rateLimited ?? false;
+        this.retryAfterSeconds = options.retryAfterSeconds;
     }
 }
 exports.GitHubError = GitHubError;

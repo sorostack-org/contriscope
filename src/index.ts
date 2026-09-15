@@ -36,6 +36,7 @@ export {
   fetchRepoFileExistence,
   postComment,
   parseRepositorySlug,
+  parseLinkHeader,
   mapGitHubIssue,
   mapGitHubRepo,
 } from "./github";

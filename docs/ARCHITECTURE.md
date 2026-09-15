@@ -79,9 +79,11 @@ never be relaxed silently: a leaked secret key must be rotated.
 
 ## Concurrency and rate limits
 
-The GitHub adapter serializes requests and surfaces `403` rate-limit responses as a dedicated error
-with `rateLimited: true`, so the CLI and action can fail with a clear message instead of a stack
-trace.
+The GitHub adapter serializes requests, follows the pagination `Link` header (falling back to a
+"full page" heuristic and a hard page cap), and surfaces `403` rate-limit responses as a dedicated
+error with `rateLimited: true`, so the CLI and action fail with a clear message instead of a stack
+trace. Secondary rate-limit responses (`429`, or `403` with a `Retry-After` header) and transient
+`5xx` responses are retried with a backoff before failing.
 
 ## Build
 

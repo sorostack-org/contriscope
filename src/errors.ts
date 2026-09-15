@@ -29,16 +29,19 @@ export class InputError extends ContriscopeError {
 export interface GitHubErrorOptions {
   status?: number;
   rateLimited?: boolean;
+  retryAfterSeconds?: number;
 }
 
 export class GitHubError extends ContriscopeError {
   status?: number;
   rateLimited: boolean;
+  retryAfterSeconds?: number;
 
   constructor(message: string, options: GitHubErrorOptions = {}) {
     super(message);
     this.name = "GitHubError";
     this.status = options.status;
     this.rateLimited = options.rateLimited ?? false;
+    this.retryAfterSeconds = options.retryAfterSeconds;
   }
 }

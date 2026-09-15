@@ -6,6 +6,7 @@ import {
   fetchRepoFile,
   fetchRepoFiles,
   githubRequest,
+  parseLinkHeader,
   parseRepositorySlug,
 } from "../src/github";
 import { GitHubError } from "../src/errors";
@@ -26,6 +27,20 @@ function mockFetchResponse(
       } as unknown as Response;
     }),
   );
+}
+
+function issueFixture(number: number, overrides: Record<string, unknown> = {}): unknown {
+  return {
+    number,
+    title: `Issue ${number}`,
+    body: "body",
+    state: "open",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    comments: 0,
+    labels: [],
+    ...overrides,
+  };
 }
 
 afterEach(() => {
@@ -119,17 +134,8 @@ describe("github adapter", () => {
     expect(content).toBeUndefined();
   });
 
-  it("paginates until fewer than 100 issues are returned", async () => {
-    const page1 = Array.from({ length: 100 }, (_, i) => ({
-      number: i + 1,
-      title: `Issue ${i + 1}`,
-      body: "body",
-      state: "open",
-      created_at: "2026-01-01T00:00:00Z",
-      updated_at: "2026-01-01T00:00:00Z",
-      comments: 0,
-      labels: [],
-    }));
+  it("paginates until fewer than perPage issues are returned", async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => issueFixture(i + 1));
     const fetchMock = vi.fn();
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -150,22 +156,18 @@ describe("github adapter", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("paginates until fewer than 100 issues are returned", async () => {
-    const page1 = Array.from({ length: 100 }, (_, i) => ({
-      number: i + 1,
-      title: `Issue ${i + 1}`,
-      body: "body",
-      state: "open",
-      created_at: "2026-01-01T00:00:00Z",
-      updated_at: "2026-01-01T00:00:00Z",
-      comments: 0,
-      labels: [],
-    }));
+  it("follows the Link header for the next page", async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => issueFixture(i + 1));
     const fetchMock = vi.fn();
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      headers: new Map(),
+      headers: new Map([
+        [
+          "link",
+          '<https://api.github.com/repos/o/r/issues?page=2&state=open&per_page=100>; rel="next", <https://api.github.com/repos/o/r/issues?page=3&state=open&per_page=100>; rel="last"',
+        ],
+      ]) as unknown as Headers,
       json: async () => page1,
     } as unknown as Response);
     fetchMock.mockResolvedValueOnce({
@@ -179,6 +181,115 @@ describe("github adapter", () => {
     const issues = await fetchAllOpenIssues("o", "r");
     expect(issues).toHaveLength(100);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not loop forever when every page is full but there is no Link header", async () => {
+    const fetchMock = vi.fn();
+    for (let i = 0; i < 50; i += 1) {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Map(),
+        json: async () => Array.from({ length: 100 }, (_, n) => issueFixture(i * 100 + n + 1)),
+      } as unknown as Response);
+    }
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchAllOpenIssues("o", "r")).rejects.toMatchObject({
+      rateLimited: false,
+      message: expect.stringContaining("50 pages"),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(50);
+  });
+
+  it("retries a 403 error with a Retry-After header", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) {
+          return {
+            ok: false,
+            status: 403,
+            headers: new Map([
+              ["x-ratelimit-remaining", "56"],
+              ["retry-after", "0"],
+            ]) as unknown as Headers,
+            json: async () => ({ message: "secondary rate limit" }),
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: new Map(),
+          json: async () => [],
+        } as unknown as Response;
+      }),
+    );
+
+    const issues = await fetchAllOpenIssues("o", "r");
+    expect(issues).toEqual([]);
+    expect(calls).toBe(2);
+  });
+
+  it("retries a 5xx transient error", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) {
+          return {
+            ok: false,
+            status: 503,
+            headers: new Map() as unknown as Headers,
+            json: async () => ({}),
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: new Map(),
+          json: async () => [],
+        } as unknown as Response;
+      }),
+    );
+
+    const issues = await fetchAllOpenIssues("o", "r");
+    expect(issues).toEqual([]);
+    expect(calls).toBe(2);
+  });
+
+  it("does not retry when the primary rate limit is exhausted", async () => {
+    const fetchMock = vi.fn();
+    for (let i = 0; i < 3; i += 1) {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        headers: new Map([
+          ["x-ratelimit-remaining", "0"],
+          ["x-ratelimit-reset", "9999999999"],
+        ]) as unknown as Headers,
+        json: async () => ({ message: "API rate limit exceeded" }),
+      } as unknown as Response);
+    }
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(githubRequest("/repos/o/r")).rejects.toMatchObject({
+      rateLimited: true,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("parses Link headers", () => {
+    expect(
+      parseLinkHeader(
+        '<https://api.github.com/a?page=2>; rel="next", <https://api.github.com/a?page=9>; rel="last"',
+      ),
+    ).toEqual({ next: "https://api.github.com/a?page=2", last: "https://api.github.com/a?page=9" });
+    expect(parseLinkHeader(undefined)).toEqual({});
+    expect(parseLinkHeader("")).toEqual({});
   });
 
   it("fetches the next page when a full page is all pull requests", async () => {

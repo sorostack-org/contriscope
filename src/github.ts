@@ -2,6 +2,11 @@ import { GitHubError } from "./errors";
 import type { Issue, RepoMetadata } from "./types";
 
 const API_BASE = "https://api.github.com";
+const REQUEST_TIMEOUT_MS = 15_000;
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_RETRY_BASE_MS = 250;
+const MAX_RETRY_WAIT_MS = 10_000;
+const MAX_PAGES_DEFAULT = 50;
 
 export interface GitHubCredentials {
   token?: string;
@@ -12,6 +17,12 @@ export interface FetchIssuesOptions {
   perPage?: number;
   page?: number;
   excludePullRequests?: boolean;
+  maxPages?: number;
+}
+
+interface RequestOptions extends RequestInit {
+  retries?: number;
+  retryBaseMs?: number;
 }
 
 interface GitHubIssueResponse {
@@ -38,32 +49,98 @@ interface GitHubRepoResponse {
   language: string | null;
 }
 
-export async function githubRequest<T>(
+interface LinkHeaderResult {
+  next?: string;
+  last?: string;
+  prev?: string;
+  first?: string;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfter(header: string | null): number | undefined {
+  if (!header) {
+    return undefined;
+  }
+  const seconds = Number(header);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined;
+}
+
+export function parseLinkHeader(header: string | null | undefined): LinkHeaderResult {
+  const result: LinkHeaderResult = {};
+  if (!header) {
+    return result;
+  }
+  for (const part of header.split(",")) {
+    const match = part.match(/<([^>]+)>;\s*rel="([^"]+)"/);
+    if (match) {
+      const rel = match[2];
+      if (rel === "next" || rel === "last" || rel === "prev" || rel === "first") {
+        result[rel] = match[1];
+      }
+    }
+  }
+  return result;
+}
+
+async function githubFetch(
   path: string,
   credentials: GitHubCredentials = {},
-): Promise<T> {
-  const headers: Record<string, string> = {
-    Accept: "application/vnd.github+json",
-    "User-Agent": "contriscope",
-  };
+  options: RequestOptions = {},
+): Promise<Response> {
+  const maxRetries = options.retries ?? DEFAULT_MAX_RETRIES;
+  const retryBaseMs = options.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
+  const headers = new Headers(options.headers);
+  headers.set("Accept", "application/vnd.github+json");
+  headers.set("User-Agent", "contriscope");
   if (credentials.token) {
-    headers.Authorization = `Bearer ${credentials.token}`;
+    headers.set("Authorization", `Bearer ${credentials.token}`);
   }
 
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE}${path}`, {
-      headers,
-      signal: AbortSignal.timeout(15_000),
-    });
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new GitHubError(`Network error while reaching the GitHub API: ${detail}`);
-  }
+  let lastStatus = 0;
+  let rateLimited = false;
+  let retryAfterSeconds: number | undefined;
 
-  if (!response.ok) {
-    const rateLimited =
-      response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0";
+  for (let attempt = 0; ; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new GitHubError(`Network error while reaching the GitHub API: ${detail}`);
+    }
+
+    if (response.ok) {
+      return response;
+    }
+
+    const remaining = response.headers.get("x-ratelimit-remaining");
+    lastStatus = response.status;
+    rateLimited = response.status === 403 && remaining === "0";
+    retryAfterSeconds = parseRetryAfter(response.headers.get("retry-after"));
+
+    const isSecondaryLimit =
+      (response.status === 403 || response.status === 429) && remaining !== "0";
+    const isTransientServerError =
+      response.status === 502 || response.status === 503 || response.status === 504;
+    const retryable =
+      !rateLimited && (isSecondaryLimit || isTransientServerError) && attempt < maxRetries;
+
+    if (retryable) {
+      const delayMs =
+        retryAfterSeconds !== undefined
+          ? Math.min(retryAfterSeconds * 1000, MAX_RETRY_WAIT_MS)
+          : retryBaseMs * 2 ** attempt;
+      await sleep(delayMs);
+      continue;
+    }
+
     let message = `GitHub API request failed with status ${response.status} for ${path}.`;
     try {
       const payload = (await response.json()) as { message?: string };
@@ -73,9 +150,15 @@ export async function githubRequest<T>(
     } catch {
       // ignore body parse errors
     }
-    throw new GitHubError(message, { status: response.status, rateLimited });
+    throw new GitHubError(message, { status: response.status, rateLimited, retryAfterSeconds });
   }
+}
 
+export async function githubRequest<T>(
+  path: string,
+  credentials: GitHubCredentials = {},
+): Promise<T> {
+  const response = await githubFetch(path, credentials);
   return (await response.json()) as T;
 }
 
@@ -113,17 +196,32 @@ export async function fetchAllOpenIssues(
   owner: string,
   repo: string,
   credentials: GitHubCredentials = {},
+  options: FetchIssuesOptions = {},
 ): Promise<Issue[]> {
+  const { perPage = 100, excludePullRequests = true, maxPages = MAX_PAGES_DEFAULT } = options;
   const issues: Issue[] = [];
   let page = 1;
   for (;;) {
-    const raw = await githubRequest<GitHubIssueResponse[]>(
-      `/repos/${owner}/${repo}/issues?state=open&per_page=100&page=${page}`,
+    if (page > maxPages) {
+      throw new GitHubError(
+        `Pagination exceeded ${maxPages} pages for ${owner}/${repo}; aborting to avoid an unbounded loop.`,
+      );
+    }
+    const response = await githubFetch(
+      `/repos/${owner}/${repo}/issues?state=open&per_page=${perPage}&page=${page}`,
       credentials,
     );
-    const filtered = raw.filter((issue) => issue.pull_request === undefined).map(mapGitHubIssue);
+    const raw = (await response.json()) as GitHubIssueResponse[];
+    const filtered = raw
+      .filter((issue) => !excludePullRequests || issue.pull_request === undefined)
+      .map(mapGitHubIssue);
     issues.push(...filtered);
-    if (raw.length < 100) {
+    const link = parseLinkHeader(response.headers.get("link"));
+    if (link.next) {
+      page += 1;
+      continue;
+    }
+    if (raw.length < perPage) {
       break;
     }
     page += 1;
@@ -157,32 +255,12 @@ export async function postComment(
   body: string,
   credentials: GitHubCredentials = {},
 ): Promise<void> {
-  const headers: Record<string, string> = {
-    Accept: "application/vnd.github+json",
-    "User-Agent": "contriscope",
-    "Content-Type": "application/json",
-  };
-  if (credentials.token) {
-    headers.Authorization = `Bearer ${credentials.token}`;
-  }
-
-  const response = await fetch(
-    `${API_BASE}/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ body }),
-      signal: AbortSignal.timeout(15_000),
-    },
-  );
-  if (!response.ok) {
-    const rateLimited =
-      response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0";
-    throw new GitHubError(
-      `Failed to post comment: GitHub API responded with status ${response.status}.`,
-      { status: response.status, rateLimited },
-    );
-  }
+  await githubFetch(`/repos/${owner}/${repo}/issues/${issueNumber}/comments`, credentials, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ body }),
+    retries: 0,
+  });
 }
 
 export async function fetchRepoFileExistence(
