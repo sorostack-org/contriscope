@@ -169,6 +169,9 @@ function deepMerge(base, overrides) {
         for (const key of Object.keys(overrides)) {
             const baseValue = base[key];
             const overrideValue = overrides[key];
+            if (overrideValue === undefined) {
+                continue;
+            }
             if (typeof baseValue === "object" &&
                 baseValue !== null &&
                 !Array.isArray(baseValue) &&
