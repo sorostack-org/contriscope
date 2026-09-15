@@ -15,6 +15,7 @@ contributions.
 | `comment`      | Post the report as a comment on the issue (`true`/`false`).                | `false`        |
 | `stellar`      | Enable Stellar ecosystem checks.                                           | `true`         |
 | `wave`         | Enable Drips Wave scoping checks.                                          | `true`         |
+| `grantfox`     | Enable GrantFox readiness checks.                                          | `true`         |
 | `config`       | Path to a `.contriscope.json` in the repository.                           | —              |
 | `fail-below`   | Fail the step when the score is below this value.                          | —              |
 
