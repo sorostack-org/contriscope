@@ -55,7 +55,7 @@ or run it without installing:
 npx contriscope --help
 ```
 
-Requires Node.js >= 18.18.
+Requires Node.js >= 20.12.
 
 ## Quick start
 
